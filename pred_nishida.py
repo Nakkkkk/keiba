@@ -20,16 +20,203 @@ from selenium.webdriver.support.ui import Select,WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
 from multiprocessing.dummy import Pool
-import sqlite3
 
 # Train data    25000 ~ 121050 (80%)
 # Test data     1000 ~ 24000 (20%)
+
+
+# ベースタイムの計算
+def calcBaseTimeFigure(place, distance, race_course_gnd):
+    csv_dir = "../data/all"
+    horse_file_list = natsorted(glob.glob(csv_dir+"/*horse*"))
+    race_file_list = natsorted(glob.glob(csv_dir+"/*race*"))
+    file_list = np.vstack((horse_file_list, race_file_list)).T
+
+    base_time_list = [] # ベースタイム
+    ri_list = [] # 指定の競馬場　かつ　指定の距離　かつ　１，２勝クラス　かつ　芝ダ障　のrace_idをリストにする
+    for file in file_list:
+        race_file_name = os.path.split(file[1])[1]
+        race_data = pd.read_csv(csv_dir+"/"+race_file_name,sep=",")
+        col_ri = race_data.columns.get_loc('race_id')
+        col_rt = race_data.columns.get_loc('race_title')
+        col_rcm = race_data.columns.get_loc('race_course_m')
+        col_wr = race_data.columns.get_loc('where_racecourse')
+        col_rcg = race_data.columns.get_loc('race_course_gnd')
+        for row in range(len(race_data)):
+            ri = race_data.iat[row,col_ri]
+            rt = race_data.iat[row,col_rt]
+            rcm = race_data.iat[row,col_rcm]
+            wr = race_data.iat[row,col_wr]
+            rcg = race_data.iat[row,col_rcg]
+            if rcg == race_course_gnd:
+                if rt == "W1" or rt == "W2" or rt == "WX":
+                    if rcm == distance:
+                        if place in wr:
+                            ri_list.append(ri)
+
+    # 上記の条件のヒット数が1以下であれば、指定の競馬場　かつ　指定の距離　かつ　芝ダ障　のrace_idをリストにする
+    if len(ri_list) < 2:
+        print("[base_time] conditions did not hit !")
+        ri_list = []
+        for file in file_list:
+            race_file_name = os.path.split(file[1])[1]
+            race_data = pd.read_csv(csv_dir+"/"+race_file_name,sep=",")
+            col_ri = race_data.columns.get_loc('race_id')
+            col_rt = race_data.columns.get_loc('race_title')
+            col_rcm = race_data.columns.get_loc('race_course_m')
+            col_wr = race_data.columns.get_loc('where_racecourse')
+            col_rcg = race_data.columns.get_loc('race_course_gnd')
+            for row in range(len(race_data)):
+                ri = race_data.iat[row,col_ri]
+                rt = race_data.iat[row,col_rt]
+                rcm = race_data.iat[row,col_rcm]
+                wr = race_data.iat[row,col_wr]
+                rcg = race_data.iat[row,col_rcg]
+                if rcg == race_course_gnd:
+                    if rcm == distance:
+                        if place in wr:
+                            ri_list.append(ri)
+
+    # 指定の競馬場　かつ　指定の距離　かつ　１，２勝クラス　かつ　芝ダ障　における1〜3位タイム平均を求める
+    for file in file_list:
+        horse_file_name = os.path.split(file[0])[1]
+        horse_data = pd.read_csv(csv_dir+"/"+horse_file_name,sep=",")
+        col_ri = horse_data.columns.get_loc('race_id')
+        col_gt = horse_data.columns.get_loc('goal_time')
+        col_r = horse_data.columns.get_loc('rank')
+        col_bw = horse_data.columns.get_loc('burden_weight')
+        gt_r1_list = [] # 1位のgoal_timeのリスト
+        gt_r2_list = [] # 2位のgoal_timeのリスト
+        gt_r3_list = [] # 3位のgoal_timeのリスト
+        row = 0
+        while True:
+            if len(horse_data) == row:
+                break
+
+            ri = horse_data.iat[row,col_ri]
+            r = horse_data.iat[row,col_r]
+            bw = horse_data.iat[row,col_bw]
+            if ri in ri_list and r == 1:
+                gt_r1_list.append(horse_data.iat[row,col_gt])       # 1st
+                gt_r2_list.append(horse_data.iat[row + 1,col_gt])   # 2nd
+                gt_r3_list.append(horse_data.iat[row + 2,col_gt])   # 3rd
+                row += 3
+            else:
+                row += 1
+
+        for i in range(len(gt_r1_list)):
+            tmp = (gt_r1_list[i] + gt_r2_list[i] + gt_r3_list[i]) / 3
+            base_time_list.append(tmp)
+
+    base_time = statistics.mean(base_time_list)
+    std_base_time = statistics.pstdev(base_time_list)
+    
+    return base_time, std_base_time
 
 
 
 # 距離指数の計算
 def calcDistanceFigure(base_time):
     return 100 / base_time
+
+
+
+# 馬場指数の計算 TODO
+def calcGndFigure(base_time, std_base_time, place, distance, race_course_gnd, weather, ground_status):
+    csv_dir = "../data/all"
+    horse_file_list = natsorted(glob.glob(csv_dir+"/*horse*"))
+    race_file_list = natsorted(glob.glob(csv_dir+"/*race*"))
+    file_list = np.vstack((horse_file_list, race_file_list)).T
+
+    ave_time_list = [] # 1〜3位平均タイム
+    ri_list = [] # 指定の競馬場　かつ　指定の距離　かつ　芝ダ障天候馬場　のrace_idをリストにする
+    for file in file_list:
+        race_file_name = os.path.split(file[1])[1]
+        race_data = pd.read_csv(csv_dir+"/"+race_file_name,sep=",")
+        col_ri = race_data.columns.get_loc('race_id')
+        col_rcg = race_data.columns.get_loc('race_course_gnd')
+        col_w = race_data.columns.get_loc('weather')
+        col_gs = race_data.columns.get_loc('ground_status')
+        col_rcm = race_data.columns.get_loc('race_course_m')
+        col_wr = race_data.columns.get_loc('where_racecourse')
+        for row in range(len(race_data)):
+            ri = race_data.iat[row,col_ri]
+            rcg = race_data.iat[row,col_rcg]
+            w = race_data.iat[row,col_w]
+            gs = race_data.iat[row,col_gs]
+            rcm = race_data.iat[row,col_rcm]
+            wr = race_data.iat[row,col_wr]
+            if rcm == distance and place in wr and race_course_gnd in rcg and w == weather and gs == ground_status:
+                ri_list.append(ri)
+
+    # 上記の条件のヒット数が1以下であれば、天候の条件を無視
+    if len(ri_list) < 2:
+        print("[ri_list] conditions conditions did not hit !")
+        ri_list = []
+        for file in file_list:
+            race_file_name = os.path.split(file[1])[1]
+            race_data = pd.read_csv(csv_dir+"/"+race_file_name,sep=",")
+            col_ri = race_data.columns.get_loc('race_id')
+            col_rcg = race_data.columns.get_loc('race_course_gnd')
+            col_w = race_data.columns.get_loc('weather')
+            col_gs = race_data.columns.get_loc('ground_status')
+            col_rcm = race_data.columns.get_loc('race_course_m')
+            col_wr = race_data.columns.get_loc('where_racecourse')
+            for row in range(len(race_data)):
+                ri = race_data.iat[row,col_ri]
+                rcg = race_data.iat[row,col_rcg]
+                w = race_data.iat[row,col_w]
+                gs = race_data.iat[row,col_gs]
+                rcm = race_data.iat[row,col_rcm]
+                wr = race_data.iat[row,col_wr]
+                if rcm == distance and place in wr and race_course_gnd in rcg and gs == ground_status:
+                    ri_list.append(ri)
+
+    # 上記の条件のヒット数が1以下であれば、None
+    if len(ri_list) < 2:
+
+        return None
+
+    # 指定の競馬場　かつ　指定の距離　かつ　芝ダ障天候馬場　における1〜3位タイム平均を求める
+    for file in file_list:
+        horse_file_name = os.path.split(file[0])[1]
+        horse_data = pd.read_csv(csv_dir+"/"+horse_file_name,sep=",")
+        col_ri = horse_data.columns.get_loc('race_id')
+        col_gt = horse_data.columns.get_loc('goal_time')
+        col_r = horse_data.columns.get_loc('rank')
+        col_bw = horse_data.columns.get_loc('burden_weight')
+        gt_r1_list = [] # 1位のgoal_timeのリスト
+        gt_r2_list = [] # 2位のgoal_timeのリスト
+        gt_r3_list = [] # 3位のgoal_timeのリスト
+        row = 0
+        while True:
+            if len(horse_data) == row:
+                break
+
+            ri = horse_data.iat[row,col_ri]
+            r = horse_data.iat[row,col_r]
+            bw = horse_data.iat[row,col_bw]
+            if ri in ri_list and r == 1:
+                gt_r1_list.append(horse_data.iat[row,col_gt])       # 1st
+                gt_r2_list.append(horse_data.iat[row + 1,col_gt])   # 2nd
+                gt_r3_list.append(horse_data.iat[row + 2,col_gt])   # 3rd
+                row += 3
+            else:
+                row += 1
+        for k in range(len(gt_r1_list)):
+            tmp = (gt_r1_list[k] + gt_r2_list[k] + gt_r3_list[k]) / 3
+            ave_time_list.append(tmp)
+
+    if len(ave_time_list) == 0:
+        diff_time = 0
+    else:
+        ave_time = statistics.mean(ave_time_list)
+        std_time = statistics.pstdev(ave_time_list)
+        stand_base_time = (ave_time - base_time) / std_base_time    # ベースタイムからの標準正規分布におけるave_timeの記録
+        stand_time = (base_time - ave_time) / std_time              # ave_timeからの標準正規分布におけるベースタイムの記録
+        diff_time = stand_base_time - stand_time                    # ベースタイムより良いタイムが出る馬場だと、数値が低くなる。https://regist.netkeiba.com/?pid=faq_detail&id=1295
+
+    return diff_time * 10   # 指数として出力するため10かけている
 
 
 
@@ -57,23 +244,6 @@ def calcBaseTimeFigureAndGndFigure(race_data_list, horse_data_list, place, dista
     base_time_list = [] # ベースタイム
     bt_ri_list = [] # ベースタイム用のrace_idリスト
     gf_ri_list = [] # 馬場指数用のrace_idリスト
-
-
-    # ベースタイム　と　馬場指数　のデータベースと照合
-    # データベースにデータがあれば、それをリターン
-    db_list = readDatabeseBaseTimeFigureAndGndFigure()
-    horse_race_data_list_shr_trim = []
-    for i in range(len(db_list)):
-        if db_list[i][1] == place and \
-           db_list[i][2] == distance and \
-           db_list[i][3] == race_course_gnd and \
-           db_list[i][4] == weather and \
-           db_list[i][5] == ground_status:
-
-            print("REUSE")
-            
-            return db_list[i][6], db_list[i][7]
-
 
     # ベースタイムと馬場指数の計算に使うrace_idの検索
     for race_data in race_data_list:
@@ -198,7 +368,7 @@ def calcBaseTimeFigureAndGndFigure(race_data_list, horse_data_list, place, dista
 
     # 馬場指数
     if len(ave_time_list) < 2:
-        gnd_figure = "NULL"
+        gnd_figure = None
     else:
         ave_time = statistics.mean(ave_time_list)
         std_time = statistics.pstdev(ave_time_list)
@@ -207,215 +377,216 @@ def calcBaseTimeFigureAndGndFigure(race_data_list, horse_data_list, place, dista
         diff_time = stand_base_time - stand_time                    # ベースタイムより良いタイムが出る馬場だと、数値が低くなる。https://regist.netkeiba.com/?pid=faq_detail&id=1295
         gnd_figure = diff_time * 10
 
-
-    # データベースに計算結果を保存
-    updateDatabeseBaseTimeFigureAndGndFigure(place, distance, race_course_gnd, weather, ground_status, base_time, gnd_figure)
-
-
     return base_time, gnd_figure   # 指数として出力するため10かけている
 
 
 
-def scrHorseRaceData(race_url):
+# 分布の計算
+def calcGoalTimeDistribution(place, distance, race_course_gnd, weather, ground_status):
+    csv_dir = "../data/all"
+    horse_file_list = natsorted(glob.glob(csv_dir+"/*horse*"))
+    race_file_list = natsorted(glob.glob(csv_dir+"/*race*"))
+    file_list = np.vstack((horse_file_list, race_file_list)).T
+
+
+    for idx_p in range(len(place)):
+        for idx_d in range(len(distance)):
+            for idx_rcg in range(len(race_course_gnd)):
+
+                plt.clf()
+                plt.figure(figsize=(15, 20), dpi=100)
+
+                ave_time_mtx = np.ones((len(weather), len(ground_status))) # 1〜3位平均タイムのmatrix
+                ave_time_mtx = [] # 1〜3位平均タイムのmatrix 競馬場、距離、芝ダ障は固定とする
+                for i in range(len(weather)):
+                    ave_time_mtx.append([])
+                    for j in range(len(ground_status)):
+                        ave_time_mtx[i].append([])
+                for file in file_list:
+                    horse_file_name = os.path.split(file[0])[1]
+                    horse_data = pd.read_csv(csv_dir+"/"+horse_file_name,sep=",")
+                    race_file_name = os.path.split(file[1])[1]
+                    race_data = pd.read_csv(csv_dir+"/"+race_file_name,sep=",")
+                    print(horse_file_name)
+
+                    # 指定の競馬場　かつ　指定の距離　かつ　芝ダ障天候馬場　のrace_idをリストにする
+                    ri_mtx = [] # 競馬場、距離、芝ダ障は固定とする
+                    for i in range(len(weather)):
+                        ri_mtx.append([])
+                        for j in range(len(ground_status)):
+                            ri_mtx[i].append([])
+                    col_ri = race_data.columns.get_loc('race_id')
+                    col_rcg = race_data.columns.get_loc('race_course_gnd')
+                    col_w = race_data.columns.get_loc('weather')
+                    col_gs = race_data.columns.get_loc('ground_status')
+                    col_rcm = race_data.columns.get_loc('race_course_m')
+                    col_wr = race_data.columns.get_loc('where_racecourse')
+                    for row in range(len(race_data)):
+                        ri = race_data.iat[row,col_ri]
+                        rcg = race_data.iat[row,col_rcg]
+                        w = race_data.iat[row,col_w]
+                        gs = race_data.iat[row,col_gs]
+                        rcm = race_data.iat[row,col_rcm]
+                        wr = race_data.iat[row,col_wr]
+                        # 20210504 競馬場、距離、芝ダ障は固定とする
+                        if rcm == distance[idx_d] and place[idx_p] in wr and race_course_gnd[idx_rcg] in rcg:
+                            for i in range(len(weather)):
+                                for j in range(len(ground_status)):
+                                    if w == weather[i] and gs == ground_status[j]:
+                                        ri_mtx[i][j].append(ri)
+
+                    # 指定の競馬場　かつ　指定の距離　かつ　芝ダ障天候馬場　における1〜3位タイム平均を求める
+                    col_ri = horse_data.columns.get_loc('race_id')
+                    col_gt = horse_data.columns.get_loc('goal_time')
+                    col_r = horse_data.columns.get_loc('rank')
+                    col_bw = horse_data.columns.get_loc('burden_weight')
+                    for i in range(len(weather)):
+                        for j in range(len(ground_status)):
+                            print(weather[i] + "-" + ground_status[j])
+                            gt_r1_list = [] # 1位のgoal_timeのリスト
+                            gt_r2_list = [] # 2位のgoal_timeのリスト
+                            gt_r3_list = [] # 3位のgoal_timeのリスト
+                            row = 0
+                            while True:
+                                if len(horse_data) == row:
+                                    break
+
+                                ri = horse_data.iat[row,col_ri]
+                                r = horse_data.iat[row,col_r]
+                                bw = horse_data.iat[row,col_bw]
+                                if ri in ri_mtx[i][j] and r == 1:
+                                    gt_r1_list.append(horse_data.iat[row,col_gt])       # 1st
+                                    gt_r2_list.append(horse_data.iat[row + 1,col_gt])   # 2nd
+                                    gt_r3_list.append(horse_data.iat[row + 2,col_gt])   # 3rd
+                                    row += 3
+                                else:
+                                    row += 1
+                            for k in range(len(gt_r1_list)):
+                                tmp = (gt_r1_list[k] + gt_r2_list[k] + gt_r3_list[k]) / 3
+                                ave_time_mtx[i][j].append(tmp)
+
+                # 描画
+                fig, axes = plt.subplots(nrows=len(weather), ncols=len(ground_status), sharex=False)
+                for i in range(len(weather)):
+                    for j in range(len(ground_status)):
+                        ave_ = 0.0
+                        if len(ave_time_mtx[i][j]) != 0:
+                            ave_ = sum(ave_time_mtx[i][j])/len(ave_time_mtx[i][j])
+                        axes[i,j].set_title("{}-{}-{:.3f}({})".format(weather[i], ground_status[j], ave_, len(ave_time_mtx[i][j])))
+                        axes[i,j].hist(ave_time_mtx[i][j])
+                        axes[i,j].tick_params(axis='x', labelrotation=45)
+
+                #plt.show()
+                plt.tight_layout()
+                plt.savefig("{}-{}-{}.png".format(place[idx_p], distance[idx_d], race_course_gnd[idx_rcg]))
+                plt.close()
+
+
+    return 
+
+
+
+
+def calcSpeedFigure(place, distance, race_course_gnd, weather, ground_status, goal_time, burden_weight):
+    # ゴールタイム表記変換
+    gt = goal_time.split(":")
+    if len(gt) == 1:
+        time = float(gt[0])
+    elif len(gt) == 2:
+        time = float(gt[1]) + float(gt[0])*60
+    else:
+        time = None
+    goal_time = time
+    print("goal_time = {}".format(goal_time))
+    # ベースタイム算出
+    base_time, std_base_time = calcBaseTimeFigure(place, distance, race_course_gnd)
+    print("base_time = {}".format(base_time))
+    # 距離指数算出
+    df = calcDistanceFigure(base_time)
+    if df == None:
+
+        return None
+
+    print("df = {}".format(df))
+    # 馬場指数算出
+    gf = calcGndFigure(base_time, std_base_time, place, distance, race_course_gnd, weather, ground_status)
+    print("gf = {}".format(gf))
+    # スピード指数算出
+    speed_figure = (base_time*10 - goal_time*10) * df + gf + (burden_weight - 55) * 2 + 80
+    print("speed_figure = {}".format(speed_figure))
+
+    return speed_figure
+
+
+
+def scrapHorseRaceData(horse_name):
     options = Options()
     options.add_argument('--headless')    # ヘッドレスモードに
     driver = webdriver.Chrome(chrome_options=options) 
     wait = WebDriverWait(driver,5)
 
-    driver.get(race_url) # 速度ボトルネック
+    URL = "https://db.netkeiba.com/?pid=horse_search_detail"
+    driver.get(URL)
     time.sleep(1)
     wait.until(EC.presence_of_all_elements_located)
-    all_race_rows = driver.find_element_by_class_name('Shutuba_Table').find_elements_by_tag_name("tr")
-    horse_name_list = []
-    horse_url_list = []
-    jockey_name_list = []
-    jockey_url_list = []
-    for r_row in range(2,len(all_race_rows)):
-        horse_name_list.append(all_race_rows[r_row].find_element_by_class_name('HorseInfo').find_element_by_tag_name("a").get_attribute("title"))
-        horse_url_list.append(all_race_rows[r_row].find_element_by_class_name('HorseInfo').find_element_by_tag_name("a").get_attribute("href"))
-        jockey_name_list.append(all_race_rows[r_row].find_element_by_class_name('Jockey').find_element_by_tag_name("a").get_attribute("title"))
-        jockey_url_list.append(all_race_rows[r_row].find_element_by_class_name('Jockey').find_element_by_tag_name("a").get_attribute("href"))
+
+    # 馬名を入力
+    driver.find_element_by_class_name('field').send_keys(horse_name)
+
+    # フォームを送信
+    frm = driver.find_element_by_css_selector("#db_search_detail_form > form")
+    frm.submit()
+    time.sleep(1)
+    wait.until(EC.presence_of_all_elements_located)
+
+    if "検索結果" in driver.title:
+        all_rows = driver.find_element_by_class_name('nk_tb_common').find_elements_by_tag_name("tr")
+        horse_url = all_rows[1].find_element_by_tag_name("a").get_attribute("href")
+        print("go to " + horse_url)
+        driver.get(horse_url)
+        time.sleep(1)
+        wait.until(EC.presence_of_all_elements_located)
 
     # 馬のレース成績をリストに保存
     horse_race_data_list = []
-    for r_row in range(len(horse_name_list)):
-        print(horse_name_list[r_row])
-        driver.get(horse_url_list[r_row])
-        time.sleep(1)
-        wait.until(EC.presence_of_all_elements_located)
-        all_horse_rows = driver.find_element_by_class_name('db_h_race_results').find_elements_by_tag_name("tr")
+    wait.until(EC.presence_of_all_elements_located)
+    all_rows = driver.find_element_by_class_name('db_h_race_results').find_elements_by_tag_name("tr")
+    for row in range(1, len(all_rows)):
+        place = all_rows[row].find_elements_by_tag_name("td")[1].find_element_by_tag_name("a").text[1:3]
+        w = all_rows[row].find_elements_by_tag_name("td")[2].text
+        weather = ""
+        if "晴" in w:
+            weather = "S"
+        elif "曇" in w:
+            weather = "C"
+        elif "小雨" in w:
+            weather = "R0"
+        elif "雨" in w:
+            weather = "R1"
+        burden_weight = int(all_rows[row].find_elements_by_tag_name("td")[13].text)
+        c_gnd = all_rows[row].find_elements_by_tag_name("td")[14].text[0]
+        race_course_gnd = ""
+        if "芝" in c_gnd:
+            race_course_gnd = "T"
+        elif "ダ" in c_gnd:
+            race_course_gnd = "D"
+        if "障" in c_gnd:
+            race_course_gnd = "O"
+        distance = int(all_rows[row].find_elements_by_tag_name("td")[14].text[1:])
+        gs = all_rows[row].find_elements_by_tag_name("td")[15].text
+        ground_status = ""
+        if "不良" in gs:
+            ground_status = "B"
+        elif "稍" in gs:
+            ground_status = "H0"
+        elif "重" in gs:
+            ground_status = "H1"
+        elif "良" in gs:
+            ground_status = "G"
+        goal_time = all_rows[row].find_elements_by_tag_name("td")[17].text
+        horse_race_data_list.append([place, weather, burden_weight, race_course_gnd, distance, ground_status, goal_time])
 
-        tmp_horse_race_data_list = []
-        for h_row in range(1, len(all_horse_rows)):
-            place = all_horse_rows[h_row].find_elements_by_tag_name("td")[1].find_element_by_tag_name("a").text[1:3]
-            w = all_horse_rows[h_row].find_elements_by_tag_name("td")[2].text
-            weather = ""
-            if "晴" in w:
-                weather = "S"
-            elif "曇" in w:
-                weather = "C"
-            elif "小雨" in w:
-                weather = "R0"
-            elif "雨" in w:
-                weather = "R1"
-            burden_weight = float(all_horse_rows[h_row].find_elements_by_tag_name("td")[13].text)
-            c_gnd = all_horse_rows[h_row].find_elements_by_tag_name("td")[14].text[0]
-            race_course_gnd = ""
-            if "芝" in c_gnd:
-                race_course_gnd = "T"
-            elif "ダ" in c_gnd:
-                race_course_gnd = "D"
-            if "障" in c_gnd:
-                race_course_gnd = "O"
-            distance = float(all_horse_rows[h_row].find_elements_by_tag_name("td")[14].text[1:])
-            gs = all_horse_rows[h_row].find_elements_by_tag_name("td")[15].text
-            ground_status = ""
-            if "不良" in gs:
-                ground_status = "B"
-            elif "稍" in gs:
-                ground_status = "H0"
-            elif "重" in gs:
-                ground_status = "H1"
-            elif "良" in gs:
-                ground_status = "G"
-            goal_time = all_horse_rows[h_row].find_elements_by_tag_name("td")[17].text
-            tmp_horse_race_data_list.append([place, weather, burden_weight, race_course_gnd, distance, ground_status, goal_time])
-        horse_race_data_list.append(tmp_horse_race_data_list)
-
-
-    # ジョッキーのレース成績をリストに保存（直近200試合を参照）
-    jockey_race_data_list = []
-    for r_row in range(len(jockey_name_list)):
-        print(jockey_name_list[r_row])
-        driver.get(jockey_url_list[r_row])
-
-        cnt = 0
-        while True:
-            time.sleep(1)
-            wait.until(EC.presence_of_all_elements_located)
-            all_jockey_rows = driver.find_element_by_class_name('race_table_01').find_elements_by_tag_name("tr")
-
-            tmp_jockey_race_data_list = []
-            for j_row in range(1, len(all_jockey_rows)):
-                place = all_jockey_rows[j_row].find_elements_by_tag_name("td")[1].find_element_by_tag_name("a").text[1:3]
-                w = all_jockey_rows[j_row].find_elements_by_tag_name("td")[2].text
-                weather = ""
-                if "晴" in w:
-                    weather = "S"
-                elif "曇" in w:
-                    weather = "C"
-                elif "小雨" in w:
-                    weather = "R0"
-                elif "雨" in w:
-                    weather = "R1"
-                burden_weight = float(all_jockey_rows[j_row].find_elements_by_tag_name("td")[13].text)
-                c_gnd = all_jockey_rows[j_row].find_elements_by_tag_name("td")[14].text[0]
-                race_course_gnd = ""
-                if "芝" in c_gnd:
-                    race_course_gnd = "T"
-                elif "ダ" in c_gnd:
-                    race_course_gnd = "D"
-                if "障" in c_gnd:
-                    race_course_gnd = "O"
-                distance = float(all_jockey_rows[j_row].find_elements_by_tag_name("td")[14].text[1:])
-                gs = all_jockey_rows[j_row].find_elements_by_tag_name("td")[15].text
-                ground_status = ""
-                if "不良" in gs:
-                    ground_status = "B"
-                elif "稍" in gs:
-                    ground_status = "H0"
-                elif "重" in gs:
-                    ground_status = "H1"
-                elif "良" in gs:
-                    ground_status = "G"
-                goal_time = all_jockey_rows[j_row].find_elements_by_tag_name("td")[16].text
-                tmp_jockey_race_data_list.append([place, weather, burden_weight, race_course_gnd, distance, ground_status, goal_time])
-            jockey_race_data_list.append(tmp_jockey_race_data_list)
-
-            cnt += 1
-            if cnt > 11:
-                break
-
-            try:
-                target = driver.find_elements_by_link_text("次")[0]
-                #print(driver.find_elements_by_link_text("次"))
-                driver.execute_script("arguments[0].click();", target) #javascriptでクリック処理
-            except IndexError:
-                break
-
-    return horse_race_data_list, horse_name_list, jockey_race_data_list, jockey_name_list
-
-
-
-
-def makeDatabeseBaseTimeFigureAndGndFigure():
-    # DBを作成する
-    # すでに存在していれば、それにアスセスする。
-    dbname = 'BaseTimeAndGndFigure.db'
-    conn = sqlite3.connect(dbname)
-    # データベースへのコネクションを閉じる。(必須)
-    conn.close()
-
-    # DBにアスセス
-    conn = sqlite3.connect(dbname)
-    # sqliteを操作するカーソルオブジェクトを作成
-    cur = conn.cursor()
-
-    # btgfというtableを作成
-    try:
-        cur.execute('CREATE TABLE btgf( \
-        id INTEGER PRIMARY KEY AUTOINCREMENT, \
-        place STRING, \
-        distance INTEGER, \
-        race_course_gnd STRING, \
-        weather STRING, \
-        ground_status STRING, \
-        basetime REAL, \
-        gndfigure REAL \
-        )')
-    except(sqlite3.OperationalError):
-        pass
-    # データベースへコミット。これで変更が反映される。
-    conn.commit()
-    conn.close()
-
-
-
-def updateDatabeseBaseTimeFigureAndGndFigure(place, distance, race_course_gnd, weather, ground_status, basetime, gndfigure):
-    dbname = 'BaseTimeAndGndFigure.db'
-    conn = sqlite3.connect(dbname)
-    cur = conn.cursor()
-
-    # データを入力 OR 更新
-    cur.execute('SELECT * FROM btgf WHERE place = "{}" AND distance = {} AND race_course_gnd = "{}" AND weather = "{}" AND ground_status = "{}"'.format(place, distance, race_course_gnd, weather, ground_status))
-    row_fetched = cur.fetchall()
-    if len(row_fetched) == 0:
-        print("INSERT")
-        cur.execute('INSERT INTO btgf(place, distance, race_course_gnd, weather, ground_status, basetime, gndfigure) \
-        values("{}",{},"{}","{}","{}",{},{})'.format(place, distance, race_course_gnd, weather, ground_status, basetime, gndfigure))
-    else:
-        print("UPDATE")
-        cur.execute('UPDATE btgf SET basetime = {}, gndfigure = {} WHERE id = {}'.format(basetime, gndfigure, row_fetched[0][0]))
-
-    conn.commit()
-
-    cur.close()
-    conn.close()
-
-
-
-def readDatabeseBaseTimeFigureAndGndFigure():
-    dbname = 'BaseTimeAndGndFigure.db'
-    conn = sqlite3.connect(dbname)
-    cur = conn.cursor()
-
-    cur.execute('SELECT * FROM btgf')
-    row_fetched = cur.fetchall()
-
-    cur.close()
-    conn.close()
-
-    return row_fetched
+    return horse_race_data_list
 
 
 
@@ -429,10 +600,8 @@ if __name__ == '__main__':
 
     start = time.time()
 
+    result = []
 
-    # ベースタイム　と　馬場指数　のデータベースを作成
-    makeDatabeseBaseTimeFigureAndGndFigure()
-    
     # csvデータの読み込み
     csv_dir = "../data/all"
     race_data_list, horse_data_list = read_csv_data(csv_dir)
@@ -440,61 +609,66 @@ if __name__ == '__main__':
     print("rap_time:{0}[sec]".format(rap_time))
 
 
-    # 出走馬、ジョッキーの過去の戦績
-    race_url = "https://race.netkeiba.com/race/shutuba.html?race_id=202105021011&rf=race_list"
-    horse_race_data_list, horse_name_list, jockey_race_data_list, jockey_name_list = scrHorseRaceData(race_url)
+    # 出走馬リスト
+    horse_name_list = ["レイモンドバローズ", "アナザーリリック", "ルークズネスト", "バスラットレオン", "リッケンバッカー", "シティレインボー", "タイムトゥヘヴン", "グレナディアガーズ", "ゴールドチャリス", "ソングライン", "ヴェイルネビュラ", "ランドオブリバティ", "ホウオウアマゾン", "ショックアクション", "シュネルマイスター", "ロードマックス", "グレイイングリーン", "ピクシーナイト"]
+
 
     # 出走馬の過去の戦績（重複なし）
+    #test_list = [['中山', 2500, 'T', 'S', 'G'], ['東京', 2400, 'T', 'C', 'G'], ['中山', 2500, 'T', 'C', 'G'], ['京都', 3000, 'T', 'S', 'G'], ['阪神', 2400, 'T', 'R0', 'G'], ['阪神', 2000, 'T', 'S', 'H0'], ['京都', 1800, 'T', 'S', 'G'], ['京都', 2000, 'T', 'S', 'G'], ['阪神', 3000, 'T', 'C', 'H1'], ['中山', 2000, 'T', 'C', 'G'], ['中京', 2200, 'T', 'S', 'G'], ['京都', 2200, 'T', 'C', 'G'], ['中山', 2000, 'T', 'S', 'H0'], ['阪神', 2400, 'T', 'S', 'G'], ['京都', 2000, 'T', 'C', 'G'], ['京都', 2000, 'T', 'S', 'H1'], ['中山', 2200, 'T', 'C', 'H0'], ['京都', 2200, 'T', 'R1', 'H1'], ['東京', 2400, 'T', 'C', 'H1'], ['京都', 2000, 'T', 'S', 'H0'], ['中山', 2000, 'T', 'S', 'G'], ['東京', 2400, 'T', 'S', 'G'], ['東京', 1800, 'T', 'S', 'G'], ['東京', 1600, 'T', 'C', 'G'], ['中山', 1600, 'T', 'S', 'G'], ['東京', 1800, 'T', 'C', 'G'], ['中山', 2200, 'T', 'C', ''], ['新潟', 2000, 'T', 'S', 'G'], ['東京', 2000, 'T', 'C', 'G'], ['阪神', 2200, 'T', 'S', 'G'], ['阪神', 1800, 'T', 'S', 'G'], ['京都', 1600, 'T', 'S', 'H0'], ['阪神', 1800, 'T', 'C', 'G'], ['東京', 2000, 'T', 'S', 'G'], ['中山', 2000, 'T', 'C', 'H0'], ['中山', 1800, 'T', 'C', 'H0'], ['阪神', 3200, 'T', 'S', 'G'], ['中京', 2000, 'T', 'S', 'G'], ['中京', 2200, 'T', 'S', 'H1'], ['阪神', 2000, 'T', 'C', 'G'], ['東京', 2500, 'T', 'C', 'G'], ['京都', 3200, 'T', 'C', 'G'], ['阪神', 3000, 'T', 'C', 'G'], ['京都', 3200, 'T', 'S', 'G'], ['東京', 3400, 'T', 'C', 'G'], ['京都', 3000, 'T', 'C', 'G'], ['新潟', 2200, 'T', 'S', 'G'], ['京都', 2200, 'T', 'S', 'G'], ['阪神', 2000, 'T', 'S', 'G'], ['阪神', 2200, 'T', 'C', 'G'], ['中山', 2500, 'T', 'C', 'H0'], ['札幌', 2000, 'T', 'C', 'H0'], ['東京', 2000, 'T', 'R1', ''], ['京都', 2200, 'T', 'S', 'H0'], ['東京', 3400, 'T', 'S', 'G'], ['中京', 3000, 'T', 'C', 'G'], ['東京', 2400, 'T', 'C', 'H0'], ['阪神', 1800, 'T', 'C', 'H1'], ['中京', 2200, 'T', 'C', 'G'], ['新潟', 2200, 'T', 'C', 'H0'], ['新潟', 2400, 'T', 'S', 'G'], ['阪神', 1800, 'D', 'S', 'G'], ['京都', 1800, 'T', 'R1', 'G'], ['京都', 1600, 'T', 'C', 'G'], ['中山', 2000, 'T', 'C', 'H1'], ['函館', 1800, 'T', 'C', 'G'], ['阪神', 2600, 'T', 'S', 'G'], ['小倉', 2600, 'T', 'C', 'H1'], ['阪神', 2400, 'T', 'S', 'H0'], ['京都', 2400, 'T', 'C', 'G'], ['阪神', 2400, 'T', 'C', 'G'], ['阪神', 2600, 'T', 'C', 'G'], ['中京', 2000, 'T', 'R0', 'H0'], ['阪神', 2400, 'T', 'C', 'H0'], ['京都', 2400, 'T', 'S', 'G'], ['小倉', 2000, 'T', 'S', 'G'], ['京都', 1800, 'T', 'C', 'G'], ['京都', 1600, 'T', 'S', 'G'], ['東京', 1400, 'T', 'S', 'G'], ['東京', 1400, 'T', 'R0', 'G'], ['中京', 1200, 'T', 'S', 'G'], ['函館', 1200, 'T', 'S', 'G'], ['東京', 1600, 'T', 'S', 'G'], ['東京', 1400, 'T', 'C', 'H0'], ['中山', 1600, 'T', 'R1', 'H0'], ['中京', 1200, 'T', 'C', 'G'], ['中山', 1600, 'T', 'R1', 'G'], ['中山', 1200, 'T', 'C', 'G'], ['新潟', 1600, 'T', 'S', 'G'], ['福島', 1200, 'T', 'R0', ''], ['東京', 1600, 'T', 'R1', ''], ['中山', 1600, 'T', 'R0', 'G'], ['阪神', 1600, 'T', 'C', 'H0'], ['中山', 1200, 'T', 'S', 'G'], ['新潟', 1400, 'T', 'R1', ''], ['函館', 1200, 'T', 'C', 'G'], ['中京', 1200, 'T', 'R1', 'H0'], ['新潟', 1400, 'T', 'S', 'G'], ['新潟', 1200, 'T', 'S', 'G'], ['新潟', 1600, 'T', 'R0', 'H0'], ['福島', 1200, 'T', 'S', 'G'], ['福島', 1200, 'T', 'C', 'G'], ['福島', 1000, 'D', 'S', 'G'], ['中山', 1200, 'D', 'C', 'G'], ['札幌', 1000, 'D', 'R0', 'H0'], ['札幌', 1000, 'D', 'S', 'G'], ['中山', 3600, 'T', 'R0', 'H0'], ['福島', 2000, 'T', 'C', 'H1'], ['中山', 2200, 'T', 'S', 'G'], ['中山', 2200, 'T', 'C', 'H1'], ['福島', 2600, 'T', 'S', 'G'], ['東京', 2400, 'T', 'R1', ''], ['中山', 2200, 'T', 'C', 'G'], ['中京', 2000, 'T', 'R0', 'G'], ['阪神', 2200, 'T', 'C', 'H0'], ['中山', 3600, 'T', 'S', 'G'], ['中山', 2000, 'T', 'R1', 'H1'], ['阪神', 1800, 'T', '', 'G'], ['京都', 1800, 'T', 'S', 'H0'], ['中山', 2500, 'T', 'S', 'H0'], ['京都', 2400, 'T', 'S', 'H0'], ['小倉', 2600, 'T', 'S', 'H0'], ['福島', 2600, 'T', 'C', 'G'], ['札幌', 2600, 'T', 'S', 'G'], ['函館', 2600, 'T', 'S', 'G'], ['東京', 2400, 'T', 'R0', 'H0'], ['札幌', 1800, 'T', 'C', 'H0'], ['新潟', 1800, 'D', 'S', 'G'], ['阪神', 1800, 'D', 'C', 'H0'], ['阪神', 1800, 'D', 'R0', 'G'], ['東京', 2100, 'D', 'S', 'G'], ['東京', 2100, 'D', 'R0', 'H0'], ['京都', 1800, 'D', 'C', 'H0'], ['中山', 1800, 'D', 'S', 'G'], ['阪神', 2000, 'D', 'S', 'G'], ['京都', 1800, 'D', 'S', 'G'], ['阪神', 1800, 'D', 'S', 'H1'], ['阪神', 1800, 'D', 'S', 'H0'], ['京都', 1800, 'D', 'S', 'H1'], ['京都', 1800, 'D', 'R1', 'H1'], ['小倉', 1700, 'D', 'S', 'G'], ['小倉', 1700, 'D', 'C', 'G'], ['小倉', 1700, 'D', 'S', 'H1'], ['京都', 1800, 'D', 'C', 'H1'], ['阪神', 1800, 'D', 'C', 'H1'], ['小倉', 1800, 'T', 'C', 'G'], ['福島', 2000, 'T', 'S', 'G'], ['福島', 2000, 'T', 'C', 'H0'], ['小倉', 2000, 'T', 'C', 'G'], ['小倉', 2000, 'T', 'R0', 'H1'], ['札幌', 1800, 'T', 'S', 'G'], ['札幌', 2000, 'T', 'S', 'G'], ['函館', 1800, 'T', 'C', 'H0'], ['福島', 1800, 'T', 'S', 'G'], ['中京', 1900, 'D', 'S', 'G'], ['福島', 1800, 'T', 'C', 'G'], ['中京', 1600, 'T', 'S', 'H0'], ['阪神', 1600, 'T', 'C', 'H1'], ['中京', 1600, 'T', 'S', 'G'], ['阪神', 1800, 'T', 'R1', 'G'], ['札幌', 1500, 'T', 'S', 'H0'], ['札幌', 1800, 'T', 'C', 'G'], ['中京', 1600, 'T', 'C', 'G']]
+    horse_race_data_list = []
+    for i in range(len(horse_name_list)):
+        print(horse_name_list[i])
+        # 馬の過去の戦績をスクレイピング
+        horse_race_data_list = horse_race_data_list + scrapHorseRaceData(horse_name_list[i])
+    print(len(horse_race_data_list))
     horse_race_data_list_shr = []
     for i in range(len(horse_race_data_list)):
-        for j in range(len(horse_race_data_list[i])):
-            place = horse_race_data_list[i][j][0]
-            if place in ["中山","阪神","東京","中京","札幌","函館","福島","新潟","京都","小倉"]: # 日本の中央競馬限定
-                weather = horse_race_data_list[i][j][1]
-                burden_weight = horse_race_data_list[i][j][2]
-                race_course_gnd = horse_race_data_list[i][j][3]
-                distance = horse_race_data_list[i][j][4]
-                ground_status = horse_race_data_list[i][j][5]
-                goal_time = horse_race_data_list[i][j][6]
-                horse_race_data_list_shr.append([place, distance, race_course_gnd, weather, ground_status])
+        place = horse_race_data_list[i][0]
+        if place in ["中山","阪神","東京","中京","札幌","函館","福島","新潟","京都","小倉"]: # 日本の中央競馬限定
+            weather = horse_race_data_list[i][1]
+            burden_weight = horse_race_data_list[i][2]
+            race_course_gnd = horse_race_data_list[i][3]
+            distance = horse_race_data_list[i][4]
+            ground_status = horse_race_data_list[i][5]
+            goal_time = horse_race_data_list[i][6]
+            horse_race_data_list_shr.append([place, distance, race_course_gnd, weather, ground_status])
     horse_race_data_list_shr = get_unique_list(horse_race_data_list_shr)
-    print("len horse_race_data_list_shr:{}".format(len(horse_race_data_list_shr)))
+    print(len(horse_race_data_list_shr))
     rap_time = time.time() - start
     print("rap_time:{0}[sec]".format(rap_time))
-
+    
 
     # 出走馬の過去の戦績（重複なし）に対する　ベースタイム　と　馬場指数
-    horse_base_time_and_gnd_figure_list = []
+    base_time_and_gnd_figure_list = []
     for i in range(len(horse_race_data_list_shr)):
         base_time, gf = calcBaseTimeFigureAndGndFigure(race_data_list, horse_data_list, horse_race_data_list_shr[i][0], horse_race_data_list_shr[i][1], horse_race_data_list_shr[i][2], horse_race_data_list_shr[i][3], horse_race_data_list_shr[i][4])
-        #print("base_time = {}".format(base_time))
-        #print("gf = {}".format(gf))
-        horse_base_time_and_gnd_figure_list.append([base_time, gf])
+        print("base_time = {}".format(base_time))
+        print("gf = {}".format(gf))
+        base_time_and_gnd_figure_list.append([base_time, gf])
     rap_time = time.time() - start
     print("rap_time:{0}[sec]".format(rap_time))
 
 
-    # スピード指数の計算
-    horse_result = []
-    for i in range(len(horse_name_list)):
+    # 各出走馬のスピード指数の算出
+    for horse_name in horse_name_list:
         try:
-            print(horse_name_list[i])
+            print(horse_name)
             print("")
-            # 出走馬の過去の戦績
-            horse_race_data = horse_race_data_list[i]
+            # 馬の過去の戦績をスクレイピング
+            horse_race_data_list = scrapHorseRaceData(horse_name)
             speed_figure_list = []
-            for j in range(len(horse_race_data)):
-                place = horse_race_data[j][0]
+            for i in range(len(horse_race_data_list)):
+                place = horse_race_data_list[i][0]
                 if place in ["中山","阪神","東京","中京","札幌","函館","福島","新潟","京都","小倉"]: # 日本の中央競馬限定
-                    weather = horse_race_data[j][1]
-                    burden_weight = horse_race_data[j][2]
-                    race_course_gnd = horse_race_data[j][3]
-                    distance = horse_race_data[j][4]
-                    ground_status = horse_race_data[j][5]
-                    goal_time = horse_race_data[j][6]
+                    weather = horse_race_data_list[i][1]
+                    burden_weight = horse_race_data_list[i][2]
+                    race_course_gnd = horse_race_data_list[i][3]
+                    distance = horse_race_data_list[i][4]
+                    ground_status = horse_race_data_list[i][5]
+                    goal_time = horse_race_data_list[i][6]
                     try:
                         idx = horse_race_data_list_shr.index([place, distance, race_course_gnd, weather, ground_status])
-                        tmp = horse_base_time_and_gnd_figure_list[idx]
+                        tmp = base_time_and_gnd_figure_list[idx]
                         base_time = tmp[0]
                         gf = tmp[1]
 
@@ -510,13 +684,13 @@ if __name__ == '__main__':
                         # ベースタイム算出
                         print("base_time = {}".format(base_time))
                         # 距離指数算出
-                        df = calcDistanceFigure(base_time)
-                        print("df = {}".format(df))
-                        # 馬場指数算出
-                        if gf == None:
+                        if base_time == None:
 
                             continue
 
+                        df = calcDistanceFigure(base_time)
+                        print("df = {}".format(df))
+                        # 馬場指数算出
                         print("gf = {}".format(gf))
                         # スピード指数算出
                         speed_figure = (base_time*10 - goal_time*10) * df + gf + (burden_weight - 55) * 2 + 80
@@ -533,132 +707,66 @@ if __name__ == '__main__':
             print("[ave] speed_figure = {}".format(ave_speed_figure))
             print("[std] speed_figure = {}".format(std_speed_figure))
 
-            horse_result.append([horse_name_list[i], ave_speed_figure])
+            result.append([horse_name, ave_speed_figure])
 
         except Exception as e:
             print('=== エラー内容 ===')
             print('type:' + str(type(e)))
             print('args:' + str(e.args))
+            print('message:' + e.message)
             print('e自身:' + str(e))
-            print(horse_result)
+            print(result)
 
-
-    print("## org ##")
-    print(horse_result)
-    print("## sorted ##")
-    print(sorted(horse_result, reverse=True, key=lambda x: x[1]))
+    print(sorted(result, reverse=True, key=lambda x: x[1]))
     elapsed_time = time.time() - start
     print("elapsed_time:{0}[sec]".format(elapsed_time))
     
 
-    # ジョッキーの過去の戦績（重複なし）
-    jockey_race_data_list_shr = []
-    for i in range(len(jockey_race_data_list)):
-        for j in range(len(jockey_race_data_list[i])):
-            place = jockey_race_data_list[i][j][0]
+
+
+
+
+    #calcGoalTimeDistribution(["中山","阪神","東京","中京","札幌","函館","福島","新潟","京都","小倉"], [1200,1800,2200,3000], ["T","D"], ["S","C","R0","R1"], ["G","H0","H1","B"])
+
+    """
+    # 馬のスピード指数を算出
+    horse_name_list = ["ワールドプレミア", "ディープボンド", "カレンブーケドール", "アリストテレス", "ウインマリリン", "ディアスティマ", "ユーキャンスマイル", "マカヒキ", "ナムラドノヴァン", "オーソリティ", "メロディーレーン", "ゴースト", "オセアグレイト", "メイショウテンゲン", "ディバインフォース", "シロニイ", "ジャコマル"]
+    start = time.time()
+    for i in range(len(horse_name_list)):
+        print(horse_name_list[i])
+
+        # 馬の過去の戦績をスクレイピング
+        horse_race_data_list = scrapHorseRaceData(horse_name_list[i])
+        print("scraping is end.")
+        print(horse_race_data_list)
+        #tmp = horse_race_data_list[0]
+        #horse_race_data_list[0] = horse_race_data_list[4]
+        #horse_race_data_list[4] = tmp
+
+        # 馬のスピード指数の平均と標準偏差を算出
+        speed_figure_list = []
+        for j in range(len(horse_race_data_list)):
+            place = horse_race_data_list[j][0]
+            print(place)
             if place in ["中山","阪神","東京","中京","札幌","函館","福島","新潟","京都","小倉"]: # 日本の中央競馬限定
-                weather = jockey_race_data_list[i][j][1]
-                burden_weight = jockey_race_data_list[i][j][2]
-                race_course_gnd = jockey_race_data_list[i][j][3]
-                distance = jockey_race_data_list[i][j][4]
-                ground_status = jockey_race_data_list[i][j][5]
-                goal_time = jockey_race_data_list[i][j][6]
-                jockey_race_data_list_shr.append([place, distance, race_course_gnd, weather, ground_status])
-    jockey_race_data_list_shr = get_unique_list(jockey_race_data_list_shr)
-    print("len jockey_race_data_list_shr:{}".format(len(jockey_race_data_list_shr)))
-    rap_time = time.time() - start
-    print("rap_time:{0}[sec]".format(rap_time))
+                weather = horse_race_data_list[j][1]
+                burden_weight = horse_race_data_list[j][2]
+                race_course_gnd = horse_race_data_list[j][3]
+                distance = horse_race_data_list[j][4]
+                ground_status = horse_race_data_list[j][5]
+                goal_time = horse_race_data_list[j][6]
+                speed_figure = calcSpeedFigure(place, distance, race_course_gnd, weather, ground_status, goal_time, burden_weight)
+                if speed_figure == None:
 
+                    continue
+                    
+                speed_figure_list.append(speed_figure)
 
-    # ジョッキーの過去の戦績（重複なし）に対する　ベースタイム　と　馬場指数
-    jockey_base_time_and_gnd_figure_list = []
-    for i in range(len(jockey_race_data_list_shr)):
-        base_time, gf = calcBaseTimeFigureAndGndFigure(race_data_list, horse_data_list, jockey_race_data_list_shr[i][0], jockey_race_data_list_shr[i][1], jockey_race_data_list_shr[i][2], jockey_race_data_list_shr[i][3], jockey_race_data_list_shr[i][4])
-        jockey_base_time_and_gnd_figure_list.append([base_time, gf])
-    rap_time = time.time() - start
-    print("rap_time:{0}[sec]".format(rap_time))
+        ave_speed_figure = statistics.mean(speed_figure_list)
+        std_speed_figure = statistics.pstdev(speed_figure_list)
 
-    # スピード指数の計算
-    jockey_result = []
-    for i in range(len(jockey_name_list)):
-        try:
-            print(jockey_name_list[i])
-            print("")
-            # 出走馬の過去の戦績
-            jockey_race_data = jockey_race_data_list[i]
-            speed_figure_list = []
-            for j in range(len(jockey_race_data)):
-                place = jockey_race_data[j][0]
-                if place in ["中山","阪神","東京","中京","札幌","函館","福島","新潟","京都","小倉"]: # 日本の中央競馬限定
-                    weather = jockey_race_data[j][1]
-                    burden_weight = jockey_race_data[j][2]
-                    race_course_gnd = jockey_race_data[j][3]
-                    distance = jockey_race_data[j][4]
-                    ground_status = jockey_race_data[j][5]
-                    goal_time = jockey_race_data[j][6]
-                    try:
-                        idx = jockey_race_data_list_shr.index([place, distance, race_course_gnd, weather, ground_status])
-                        tmp = jockey_base_time_and_gnd_figure_list[idx]
-                        base_time = tmp[0]
-                        gf = tmp[1]
-
-                        # ゴールタイム表記変換
-                        gt = goal_time.split(":")
-                        if len(gt) == 1:
-                            goal_time = float(gt[0])
-                        elif len(gt) == 2:
-                            goal_time = float(gt[1]) + float(gt[0])*60
-                        else:
-                            goal_time = None
-                        print("goal_time = {}".format(goal_time))
-                        # ベースタイム算出
-                        print("base_time = {}".format(base_time))
-                        # 距離指数算出
-                        df = calcDistanceFigure(base_time)
-                        print("df = {}".format(df))
-                        # 馬場指数算出
-                        if gf == None:
-
-                            continue
-
-                        print("gf = {}".format(gf))
-                        # スピード指数算出
-                        speed_figure = (base_time*10 - goal_time*10) * df + gf + (burden_weight - 55) * 2 + 80
-                        print("speed_figure = {}".format(speed_figure))
-
-                        speed_figure_list.append(speed_figure)
-
-                    except:
-                        print("can not find")
-                        print([place, distance, race_course_gnd, weather, ground_status])
-
-            ave_speed_figure = statistics.mean(speed_figure_list)
-            std_speed_figure = statistics.pstdev(speed_figure_list)
-            print("[ave] speed_figure = {}".format(ave_speed_figure))
-            print("[std] speed_figure = {}".format(std_speed_figure))
-
-            jockey_result.append([jockey_name_list[i], ave_speed_figure])
-
-        except Exception as e:
-            print('=== エラー内容 ===')
-            print('type:' + str(type(e)))
-            print('args:' + str(e.args))
-            print('e自身:' + str(e))
-            print(jockey_result)
-
-    print("## org ##")
-    print(jockey_result)
-    print("## sorted ##")
-    print(sorted(jockey_result, reverse=True, key=lambda x: x[1]))
+        print(ave_speed_figure)
+        print(std_speed_figure)
     elapsed_time = time.time() - start
-    print("elapsed_time:{0}[sec]".format(elapsed_time))
-
-
-    # 出走馬とジョッキーのスピード指数の平均をソートして表示
-    total_result = []
-    for i in range(len(horse_result)):
-        total_result.append([(horse_result[i][1] + jockey_result[i][1]) / 2, horse_result[i][0], jockey_result[i][0]])
-    total_result_ = sorted(total_result, reverse=True, key=lambda x: x[0])
-    for i in range(len(total_result_)):
-        print(total_result_[i])
-
+    print ("elapsed_time:{0}[sec]".format(elapsed_time))
+    """
