@@ -102,9 +102,9 @@ def calcBaseTimeFigureAndGndFigure(race_data_list, horse_data_list, place, dista
                         if place in wr:
                             bt_ri_list.append(ri)
 
-    # [ベースタイム] 上記の条件のヒット数が1以下であれば、天候の条件を無視
+    # [馬場指数] 上記の条件のヒット数が1以下であれば、指定の競馬場　かつ　指定の距離　かつ　芝ダ障　のrace_idをリストにする
     if len(gf_ri_list) < 2:
-        print("[gf_ri_list] conditions conditions did not hit !")
+        print("[gf_ri_list] conditions did not hit !")
         gf_ri_list = []
         for race_data in race_data_list:
             col_ri = race_data.columns.get_loc('race_id')
@@ -123,7 +123,7 @@ def calcBaseTimeFigureAndGndFigure(race_data_list, horse_data_list, place, dista
                 if rcm == distance and place in wr and race_course_gnd in rcg and gs == ground_status:
                     gf_ri_list.append(ri)
 
-    # [馬場指数] 上記の条件のヒット数が1以下であれば、指定の競馬場　かつ　指定の距離　かつ　芝ダ障　のrace_idをリストにする
+    # [ベースタイム] 上記の条件のヒット数が1以下であれば、天候の条件を無視
     if len(bt_ri_list) < 2:
         print("[base_time] conditions did not hit !")
         bt_ri_list = []
@@ -441,7 +441,7 @@ if __name__ == '__main__':
 
 
     # 出走馬、ジョッキーの過去の戦績
-    race_url = "https://race.netkeiba.com/race/shutuba.html?race_id=202105021011&rf=race_list"
+    race_url = "https://race.netkeiba.com/race/shutuba.html?race_id=202105020811&rf=race_submenu"
     horse_race_data_list, horse_name_list, jockey_race_data_list, jockey_name_list = scrHorseRaceData(race_url)
 
     # 出走馬の過去の戦績（重複なし）
