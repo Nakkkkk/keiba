@@ -441,7 +441,7 @@ if __name__ == '__main__':
 
 
     # 出走馬、ジョッキーの過去の戦績
-    race_url = "https://race.netkeiba.com/race/shutuba.html?race_id=202105020811&rf=race_submenu"
+    race_url = "https://race.netkeiba.com/race/shutuba.html?race_id=202105021211&rf=race_list"
     horse_race_data_list, horse_name_list, jockey_race_data_list, jockey_name_list = scrHorseRaceData(race_url)
 
     # 出走馬の過去の戦績（重複なし）
