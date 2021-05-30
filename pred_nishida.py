@@ -21,6 +21,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
 from multiprocessing.dummy import Pool
 import sqlite3
+import logging
 
 # Train data    25000 ~ 121050 (80%)
 # Test data     1000 ~ 24000 (20%)
@@ -216,7 +217,7 @@ def calcBaseTimeFigureAndGndFigure(race_data_list, horse_data_list, place, dista
 
 
 
-def scrHorseRaceData(race_url):
+def scrHorseAndJockeyRaceData(race_url):
     options = Options()
     options.add_argument('--headless')    # ヘッドレスモードに
     driver = webdriver.Chrome(chrome_options=options) 
@@ -225,12 +226,27 @@ def scrHorseRaceData(race_url):
     driver.get(race_url) # 速度ボトルネック
     time.sleep(1)
     wait.until(EC.presence_of_all_elements_located)
+
+    # 開催レース情報の取得
+    racedata01_rows = driver.find_element_by_class_name('RaceData01').find_elements_by_tag_name("span")
+    racedata01_distance = int(racedata01_rows[0].text[-5:-1])
+    racedata01_race_course_gnd = ""
+    if "芝" in racedata01_rows[0].text[0]:
+        racedata01_race_course_gnd = "T"
+    elif "ダ" in racedata01_rows[0].text[0]:
+        racedata01_race_course_gnd = "D"
+    if "障" in racedata01_rows[0].text[0]:
+        racedata01_race_course_gnd = "O"
+    racedata02_rows = driver.find_element_by_class_name('RaceData02').find_elements_by_tag_name("span")
+    racedata02_place = racedata02_rows[1].text
+
     all_race_rows = driver.find_element_by_class_name('Shutuba_Table').find_elements_by_tag_name("tr")
     horse_name_list = []
     horse_url_list = []
     jockey_name_list = []
     jockey_url_list = []
     for r_row in range(2,len(all_race_rows)):
+        #for r_row in range(2 + 4,2+5):
         horse_name_list.append(all_race_rows[r_row].find_element_by_class_name('HorseInfo').find_element_by_tag_name("a").get_attribute("title"))
         horse_url_list.append(all_race_rows[r_row].find_element_by_class_name('HorseInfo').find_element_by_tag_name("a").get_attribute("href"))
         jockey_name_list.append(all_race_rows[r_row].find_element_by_class_name('Jockey').find_element_by_tag_name("a").get_attribute("title"))
@@ -289,13 +305,14 @@ def scrHorseRaceData(race_url):
         print(jockey_name_list[r_row])
         driver.get(jockey_url_list[r_row])
 
+        tmp0_jockey_race_data_list = []
         cnt = 0
         while True:
             time.sleep(1)
             wait.until(EC.presence_of_all_elements_located)
             all_jockey_rows = driver.find_element_by_class_name('race_table_01').find_elements_by_tag_name("tr")
 
-            tmp_jockey_race_data_list = []
+            tmp1_jockey_race_data_list = []
             for j_row in range(1, len(all_jockey_rows)):
                 place = all_jockey_rows[j_row].find_elements_by_tag_name("td")[1].find_element_by_tag_name("a").text[1:3]
                 w = all_jockey_rows[j_row].find_elements_by_tag_name("td")[2].text
@@ -329,11 +346,21 @@ def scrHorseRaceData(race_url):
                 elif "良" in gs:
                     ground_status = "G"
                 goal_time = all_jockey_rows[j_row].find_elements_by_tag_name("td")[16].text
-                tmp_jockey_race_data_list.append([place, weather, burden_weight, race_course_gnd, distance, ground_status, goal_time])
-            jockey_race_data_list.append(tmp_jockey_race_data_list)
 
-            cnt += 1
-            if cnt > 11:
+                if place == "" or weather == "" or burden_weight == "" or race_course_gnd == "" or distance == "" or ground_status == "" or goal_time == "":
+                    
+                    continue
+
+                # 開催レース情報と合致する騎手データのみを取得
+                if (racedata01_distance - 400 < distance and distance < racedata01_distance + 400) and racedata01_race_course_gnd == race_course_gnd:
+                    tmp1_jockey_race_data_list.append([place, weather, burden_weight, race_course_gnd, distance, ground_status, goal_time])
+                    print("{} {}".format(cnt, [place, weather, burden_weight, race_course_gnd, distance, ground_status, goal_time]))
+                    cnt += 1
+
+            tmp0_jockey_race_data_list += tmp1_jockey_race_data_list
+
+            
+            if cnt > 100:
                 break
 
             try:
@@ -342,6 +369,8 @@ def scrHorseRaceData(race_url):
                 driver.execute_script("arguments[0].click();", target) #javascriptでクリック処理
             except IndexError:
                 break
+        
+        jockey_race_data_list.append(tmp0_jockey_race_data_list)
 
     return horse_race_data_list, horse_name_list, jockey_race_data_list, jockey_name_list
 
@@ -441,8 +470,8 @@ if __name__ == '__main__':
 
 
     # 出走馬、ジョッキーの過去の戦績
-    race_url = "https://race.netkeiba.com/race/shutuba.html?race_id=202105021011&rf=race_list"
-    horse_race_data_list, horse_name_list, jockey_race_data_list, jockey_name_list = scrHorseRaceData(race_url)
+    race_url = "https://race.netkeiba.com/race/shutuba.html?race_id=202105021211&rf=race_list"
+    horse_race_data_list, horse_name_list, jockey_race_data_list, jockey_name_list = scrHorseAndJockeyRaceData(race_url)
 
     # 出走馬の過去の戦績（重複なし）
     horse_race_data_list_shr = []
@@ -539,7 +568,6 @@ if __name__ == '__main__':
             print('=== エラー内容 ===')
             print('type:' + str(type(e)))
             print('args:' + str(e.args))
-            print('e自身:' + str(e))
             print(horse_result)
 
 
@@ -589,6 +617,7 @@ if __name__ == '__main__':
             speed_figure_list = []
             for j in range(len(jockey_race_data)):
                 place = jockey_race_data[j][0]
+                print(place)
                 if place in ["中山","阪神","東京","中京","札幌","函館","福島","新潟","京都","小倉"]: # 日本の中央競馬限定
                     weather = jockey_race_data[j][1]
                     burden_weight = jockey_race_data[j][2]
