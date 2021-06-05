@@ -64,7 +64,7 @@ def makeDatabeseRace(sql_dir):
 
     # horseというtableを作成
     try:
-        cur.execute('CREATE TABLE horse( \
+        cur.execute('CREATE TABLE race( \
         id INTEGER PRIMARY KEY AUTOINCREMENT, \
         race_id INTEGER, \
         race_round STRING, \
@@ -480,7 +480,7 @@ def updateDatabaseByList(txtname):
             race_details1 = dl_racedata.find_elements_by_tag_name("p")[0].text.split(" / ")
 
             #race_info.append(race_details1[0]) # race_course
-            race_course_m = int(race_details1[0][2:-1])
+            race_course_m = int(race_details1[0][-5:-1])
             race_course_gnd = ""
             if "芝" in race_details1[0][0]:
                 race_course_gnd = "T"
@@ -548,7 +548,7 @@ def updateDatabaseByList(txtname):
             pay_back_tables = driver.find_elements_by_class_name('pay_table_01')
 
             pay_back1 = pay_back_tables[0].find_elements_by_tag_name("tr") # 払い戻し1(単勝・複勝)
-            tansyo = int(pay_back1[0].find_elements_by_class_name('txt_r')[0].text.replace(",",""))
+            tansyo = int(pay_back1[0].find_elements_by_class_name('txt_r')[0].text.split("\n")[0].replace(",",""))
             race_info.append(tansyo) #tansyo
             hukuren = pay_back1[1].find_elements_by_class_name('txt_r')[0].text.replace(",","").split("\n")
             for i in range(3):
@@ -559,13 +559,13 @@ def updateDatabaseByList(txtname):
 
             # 枠連
             try:
-                race_info.append(int(pay_back1[2].find_elements_by_class_name('txt_r')[0].text.replace(",","")))
+                race_info.append(int(pay_back1[2].find_elements_by_class_name('txt_r')[0].text.split("\n")[0].replace(",","")))
             except IndexError:
                 race_info.append(0)
 
             # 馬連
             try:
-                race_info.append(int(pay_back1[3].find_elements_by_class_name('txt_r')[0].text.replace(",","")))
+                race_info.append(int(pay_back1[3].find_elements_by_class_name('txt_r')[0].text.split("\n")[0].replace(",","")))
             except IndexError:
                 race_info.append(0)
 
@@ -575,7 +575,7 @@ def updateDatabaseByList(txtname):
                     race_info.append(0)
             else:
                 # wide 1&2
-                wide = pay_back2[0].find_elements_by_class_name('txt_r')[0].text.replace(",","")
+                wide = pay_back2[0].find_elements_by_class_name('txt_r')[0].text.replace(",","").split("\n")
                 for i in range(3):
                     try:
                         race_info.append(int(wide[i])) # hukuren_first or second or third
@@ -584,17 +584,17 @@ def updateDatabaseByList(txtname):
 
                 # umatan
                 try:
-                    race_info.append(int(pay_back2[1].find_elements_by_class_name('txt_r')[0].text.replace(",",""))) #umatan
+                    race_info.append(int(pay_back2[1].find_elements_by_class_name('txt_r')[0].text.split("\n")[0].replace(",",""))) #umatan
                 except IndexError:
                     race_info.append(0)
                 
                 try:
-                    race_info.append(int(pay_back2[2].find_elements_by_class_name('txt_r')[0].text.replace(",",""))) #renhuku3
+                    race_info.append(int(pay_back2[2].find_elements_by_class_name('txt_r')[0].text.split("\n")[0].replace(",",""))) #renhuku3
                 except IndexError:
                     race_info.append(0)
                 
                 try:
-                    race_info.append(int(pay_back2[3].find_elements_by_class_name('txt_r')[0].text.replace(",",""))) #rentan3
+                    race_info.append(int(pay_back2[3].find_elements_by_class_name('txt_r')[0].text.split("\n")[0].replace(",",""))) #rentan3
                 except IndexError:
                     race_info.append(0)
 
@@ -612,7 +612,11 @@ def updateDatabaseByList(txtname):
                 result_row = result_rows[rank].find_elements_by_tag_name("td")
                 #print(result_row)
                 # rank
-                horse_info.append(int(result_row[0].text))
+                try:
+                    horse_info.append(int(result_row[0].text))
+                except:
+                    print(result_row[0].text)
+                    horse_info.append("NULL")
                 # frame_number
                 horse_info.append(int(result_row[1].text))
                 # horse_number
@@ -642,6 +646,8 @@ def updateDatabaseByList(txtname):
                 goal_time = "NULL"
                 if type(result_row[7].text) == float:
                     goal_time = result_row[7].text
+                elif result_row[7].text == "":
+                    goal_time = "NULL"
                 else:
                     gt = result_row[7].text.split(":")
                     if len(gt) == 1:
@@ -657,16 +663,36 @@ def updateDatabaseByList(txtname):
                 # half_way_rank
                 horse_info.append(result_row[10].text)
                 # last_time(上り)
-                horse_info.append(float(result_row[11].text))
+                try:
+                    horse_info.append(float(result_row[11].text))
+                except:
+                    print(result_row[11].text)
+                    horse_info.append("NULL")
                 # odds
-                horse_info.append(float(result_row[12].text))
+                try:
+                    horse_info.append(float(result_row[12].text))
+                except:
+                    print(result_row[12].text)
+                    horse_info.append("NULL")
                 # popular
-                horse_info.append(int(result_row[13].text))
+                try:
+                    horse_info.append(int(result_row[13].text))
+                except:
+                    print(result_row[13].text)
+                    horse_info.append("NULL")
                 # horse_weight
                 weight = "NULL"
                 change = "NULL"
                 if type(result_row[14].text) == float:
-                    continue
+                    weight = "NULL"
+                    change = "NULL"
+                    horse_info.append(weight)
+                    horse_info.append(change)
+                elif result_row[14].text == "計不" or result_row[14].text == "":
+                    weight = "NULL"
+                    change = "NULL"
+                    horse_info.append(weight)
+                    horse_info.append(change)
                 else:
                     hw = result_row[14].text.split("(")
                     if len(hw) == 1:
@@ -682,8 +708,8 @@ def updateDatabaseByList(txtname):
                             change = float(wc[1:]) * -1
                         else:
                             change = float(wc)
-                horse_info.append(float(weight))
-                horse_info.append(float(change))
+                    horse_info.append(float(weight))
+                    horse_info.append(float(change))
                 # 16:コメント、17:備考
                 # tamer_id
                 try:
@@ -699,8 +725,6 @@ def updateDatabaseByList(txtname):
                 horse_infos.append(horse_info)
             
             horse_infos_list.append(horse_infos)
-
-            break
 
     horse_data_cur.close()
     horse_data_conn.close()

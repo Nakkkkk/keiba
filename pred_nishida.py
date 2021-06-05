@@ -55,7 +55,7 @@ def readHorseSqlDatabase(sql_dir):
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
-    cur.execute('SELECT * FROM horse')
+    cur.execute('SELECT * FROM horse order by race_id desc')
     horse_data_list = []
     for row in cur.fetchall():
         horse_data_list.append(dict(row))
@@ -74,7 +74,7 @@ def readRaceSqlDatabase(sql_dir):
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
-    cur.execute('SELECT * FROM race')
+    cur.execute('SELECT * FROM race order by race_id desc')
     race_data_list = []
     for row in cur.fetchall():
         race_data_list.append(dict(row))
@@ -479,7 +479,7 @@ if __name__ == '__main__':
     print("rap_time:{0}[sec]".format(rap_time))
 
     # 出走馬、ジョッキーの過去の戦績
-    race_url = "https://race.netkeiba.com/race/shutuba.html?race_id=202105021211&rf=race_list"
+    race_url = "https://race.netkeiba.com/race/shutuba.html?race_id=202105030211&rf=race_submenu"
     horse_race_data_list, horse_name_list, jockey_race_data_list, jockey_name_list = scrHorseAndJockeyRaceData(race_url)
 
     # 出走馬の過去の戦績（重複なし）
