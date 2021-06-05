@@ -21,7 +21,10 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
 from multiprocessing.dummy import Pool
 import sqlite3
-import logging
+
+# Train data    25000 ~ 121050 (80%)
+# Test data     1000 ~ 24000 (20%)
+
 
 
 # 距離指数の計算
@@ -45,44 +48,6 @@ def read_csv_data(csv_dir):
         horse_data_list = p.map(pd.read_csv, horse_file_list)
 
     return race_data_list, horse_data_list
-
-
-
-# 馬のSQLデータベースの読み込み
-def readHorseSqlDatabase(sql_dir):
-    dbname = '/Horse.db'
-    conn = sqlite3.connect(sql_dir + dbname)
-    conn.row_factory = sqlite3.Row
-    cur = conn.cursor()
-
-    cur.execute('SELECT * FROM horse')
-    horse_data_list = []
-    for row in cur.fetchall():
-        horse_data_list.append(dict(row))
-
-    cur.close()
-    conn.close()
-
-    return horse_data_list
-
-
-
-# レースのSQLデータベースの読み込み
-def readRaceSqlDatabase(sql_dir):
-    dbname = '/Race.db'
-    conn = sqlite3.connect(sql_dir + dbname)
-    conn.row_factory = sqlite3.Row
-    cur = conn.cursor()
-
-    cur.execute('SELECT * FROM race')
-    race_data_list = []
-    for row in cur.fetchall():
-        race_data_list.append(dict(row))
-
-    cur.close()
-    conn.close()
-
-    return race_data_list
 
 
 
@@ -111,52 +76,73 @@ def calcBaseTimeFigureAndGndFigure(race_data_list, horse_data_list, place, dista
 
 
     # ベースタイムと馬場指数の計算に使うrace_idの検索
-    for row in range(len(race_data_list)):
-        ri = race_data_list[row]["race_id"]
-        rt = race_data_list[row]["race_title"]
-        rcg = race_data_list[row]["race_course_gnd"]
-        w = race_data_list[row]["weather"]
-        gs = race_data_list[row]["ground_status"]
-        rcm = race_data_list[row]["race_course_m"]
-        wr = race_data_list[row]["where_racecourse"]
-        # 馬場指数
-        if rcm == distance and place in wr and race_course_gnd in rcg and w == weather and gs == ground_status:
-            gf_ri_list.append(ri)
-        # ベースタイム
-        if rcg == race_course_gnd:
-            if rt == "W1" or rt == "W2" or rt == "WX":
-                if rcm == distance:
-                    if place in wr:
-                        bt_ri_list.append(ri)
-
-    # [ベースタイム] 上記の条件のヒット数が1以下であれば、天候の条件を無視
-    if len(gf_ri_list) < 2:
-        print("[gf_ri_list] conditions conditions did not hit !")
-        gf_ri_list = []
-        for row in range(len(race_data_list)):
-            ri = race_data_list[row]["race_id"]
-            rcg = race_data_list[row]["race_course_gnd"]
-            w = race_data_list[row]["weather"]
-            gs = race_data_list[row]["ground_status"]
-            rcm = race_data_list[row]["race_course_m"]
-            wr = race_data_list[row]["where_racecourse"]
-            if rcm == distance and place in wr and race_course_gnd in rcg and gs == ground_status:
+    for race_data in race_data_list:
+        col_ri = race_data.columns.get_loc('race_id')
+        col_rt = race_data.columns.get_loc('race_title')
+        col_rcg = race_data.columns.get_loc('race_course_gnd')
+        col_w = race_data.columns.get_loc('weather')
+        col_gs = race_data.columns.get_loc('ground_status')
+        col_rcm = race_data.columns.get_loc('race_course_m')
+        col_wr = race_data.columns.get_loc('where_racecourse')
+        for row in range(len(race_data)):
+            ri = race_data.iat[row,col_ri]
+            rt = race_data.iat[row,col_rt]
+            rcg = race_data.iat[row,col_rcg]
+            w = race_data.iat[row,col_w]
+            gs = race_data.iat[row,col_gs]
+            rcm = race_data.iat[row,col_rcm]
+            wr = race_data.iat[row,col_wr]
+            # 馬場指数
+            if rcm == distance and place in wr and race_course_gnd in rcg and w == weather and gs == ground_status:
                 gf_ri_list.append(ri)
+            # ベースタイム
+            if rcg == race_course_gnd:
+                if rt == "W1" or rt == "W2" or rt == "WX":
+                    if rcm == distance:
+                        if place in wr:
+                            bt_ri_list.append(ri)
 
     # [馬場指数] 上記の条件のヒット数が1以下であれば、指定の競馬場　かつ　指定の距離　かつ　芝ダ障　のrace_idをリストにする
+    if len(gf_ri_list) < 2:
+        print("[gf_ri_list] conditions did not hit !")
+        gf_ri_list = []
+        for race_data in race_data_list:
+            col_ri = race_data.columns.get_loc('race_id')
+            col_rcg = race_data.columns.get_loc('race_course_gnd')
+            col_w = race_data.columns.get_loc('weather')
+            col_gs = race_data.columns.get_loc('ground_status')
+            col_rcm = race_data.columns.get_loc('race_course_m')
+            col_wr = race_data.columns.get_loc('where_racecourse')
+            for row in range(len(race_data)):
+                ri = race_data.iat[row,col_ri]
+                rcg = race_data.iat[row,col_rcg]
+                w = race_data.iat[row,col_w]
+                gs = race_data.iat[row,col_gs]
+                rcm = race_data.iat[row,col_rcm]
+                wr = race_data.iat[row,col_wr]
+                if rcm == distance and place in wr and race_course_gnd in rcg and gs == ground_status:
+                    gf_ri_list.append(ri)
+
+    # [ベースタイム] 上記の条件のヒット数が1以下であれば、天候の条件を無視
     if len(bt_ri_list) < 2:
         print("[base_time] conditions did not hit !")
         bt_ri_list = []
-        for row in range(len(race_data_list)):
-            ri = race_data_list[row]["race_id"]
-            rt = race_data_list[row]["race_title"]
-            rcg = race_data_list[row]["race_course_gnd"]
-            rcm = race_data_list[row]["race_course_m"]
-            wr = race_data_list[row]["where_racecourse"]
-            if rcg == race_course_gnd:
-                if rcm == distance:
-                    if place in wr:
-                        bt_ri_list.append(ri)
+        for race_data in race_data_list:
+            col_ri = race_data.columns.get_loc('race_id')
+            col_rt = race_data.columns.get_loc('race_title')
+            col_rcm = race_data.columns.get_loc('race_course_m')
+            col_wr = race_data.columns.get_loc('where_racecourse')
+            col_rcg = race_data.columns.get_loc('race_course_gnd')
+            for row in range(len(race_data)):
+                ri = race_data.iat[row,col_ri]
+                rt = race_data.iat[row,col_rt]
+                rcm = race_data.iat[row,col_rcm]
+                wr = race_data.iat[row,col_wr]
+                rcg = race_data.iat[row,col_rcg]
+                if rcg == race_course_gnd:
+                    if rcm == distance:
+                        if place in wr:
+                            bt_ri_list.append(ri)
 
 
     gf_ri_list_sort = natsorted(gf_ri_list, reverse=True)
@@ -164,32 +150,36 @@ def calcBaseTimeFigureAndGndFigure(race_data_list, horse_data_list, place, dista
     gf_ri_list_idx = 0
     bt_ri_list_idx = 0
     # 指定の競馬場　かつ　指定の距離　かつ　芝ダ障天候馬場　における1〜3位タイム平均を求める
-    row = 0
-    while True:
-        if len(horse_data_list) == row:
-            break
+    for horse_data in horse_data_list:
+        col_ri = horse_data.columns.get_loc('race_id')
+        col_gt = horse_data.columns.get_loc('goal_time')
+        col_r = horse_data.columns.get_loc('rank')
+        col_bw = horse_data.columns.get_loc('burden_weight')
+        row = 0
+        while True:
+            if len(horse_data) == row:
+                break
 
-        ri = horse_data_list[row]["race_id"]
-        r = horse_data_list[row]["rank"]
-
-        gf_ri_bool = False
-        if len(gf_ri_list) != gf_ri_list_idx:
-            gf_ri_bool = (ri == gf_ri_list_sort[gf_ri_list_idx] and r == 1)
-        bt_ri_bool = False
-        if len(bt_ri_list) != bt_ri_list_idx:
-            bt_ri_bool = (ri == bt_ri_list_sort[bt_ri_list_idx] and r == 1)
-        if gf_ri_bool or bt_ri_bool:
-            ave_gt = (horse_data_list[row]["goal_time"] + horse_data_list[row + 1]["goal_time"] + horse_data_list[row + 2]["goal_time"]) / 3
-            if gf_ri_bool and len(gf_ri_list) != gf_ri_list_idx:
-                ave_time_list.append(ave_gt)
-                gf_ri_list_idx += 1
-            if bt_ri_bool and len(bt_ri_list) != bt_ri_list_idx:
-                base_time_list.append(ave_gt)
-                bt_ri_list_idx += 1
-            row += 3
-        else:
-            row += 1
-
+            ri = horse_data.iat[row,col_ri]
+            r = horse_data.iat[row,col_r]
+            bw = horse_data.iat[row,col_bw]
+            gf_ri_bool = False
+            if len(gf_ri_list) != gf_ri_list_idx:
+                gf_ri_bool = (ri == gf_ri_list_sort[gf_ri_list_idx] and r == 1)
+            bt_ri_bool = False
+            if len(bt_ri_list) != bt_ri_list_idx:
+                bt_ri_bool = (ri == bt_ri_list_sort[bt_ri_list_idx] and r == 1)
+            if gf_ri_bool or bt_ri_bool:
+                ave_gt = (horse_data.iat[row,col_gt] + horse_data.iat[row + 1,col_gt] + horse_data.iat[row + 2,col_gt]) / 3
+                if gf_ri_bool and len(gf_ri_list) != gf_ri_list_idx:
+                    ave_time_list.append(ave_gt)
+                    gf_ri_list_idx += 1
+                if bt_ri_bool and len(bt_ri_list) != bt_ri_list_idx:
+                    base_time_list.append(ave_gt)
+                    bt_ri_list_idx += 1
+                row += 3
+            else:
+                row += 1
 
 
     if len(gf_ri_list) != len(ave_time_list) or len(bt_ri_list) != len(base_time_list):
@@ -235,27 +225,12 @@ def scrHorseAndJockeyRaceData(race_url):
     driver.get(race_url) # 速度ボトルネック
     time.sleep(1)
     wait.until(EC.presence_of_all_elements_located)
-
-    # 開催レース情報の取得
-    racedata01_rows = driver.find_element_by_class_name('RaceData01').find_elements_by_tag_name("span")
-    racedata01_distance = int(racedata01_rows[0].text[-5:-1])
-    racedata01_race_course_gnd = ""
-    if "芝" in racedata01_rows[0].text[0]:
-        racedata01_race_course_gnd = "T"
-    elif "ダ" in racedata01_rows[0].text[0]:
-        racedata01_race_course_gnd = "D"
-    if "障" in racedata01_rows[0].text[0]:
-        racedata01_race_course_gnd = "O"
-    racedata02_rows = driver.find_element_by_class_name('RaceData02').find_elements_by_tag_name("span")
-    racedata02_place = racedata02_rows[1].text
-
     all_race_rows = driver.find_element_by_class_name('Shutuba_Table').find_elements_by_tag_name("tr")
     horse_name_list = []
     horse_url_list = []
     jockey_name_list = []
     jockey_url_list = []
     for r_row in range(2,len(all_race_rows)):
-        #for r_row in range(2 + 4,2+5):
         horse_name_list.append(all_race_rows[r_row].find_element_by_class_name('HorseInfo').find_element_by_tag_name("a").get_attribute("title"))
         horse_url_list.append(all_race_rows[r_row].find_element_by_class_name('HorseInfo').find_element_by_tag_name("a").get_attribute("href"))
         jockey_name_list.append(all_race_rows[r_row].find_element_by_class_name('Jockey').find_element_by_tag_name("a").get_attribute("title"))
@@ -314,14 +289,13 @@ def scrHorseAndJockeyRaceData(race_url):
         print(jockey_name_list[r_row])
         driver.get(jockey_url_list[r_row])
 
-        tmp0_jockey_race_data_list = []
         cnt = 0
         while True:
             time.sleep(1)
             wait.until(EC.presence_of_all_elements_located)
             all_jockey_rows = driver.find_element_by_class_name('race_table_01').find_elements_by_tag_name("tr")
 
-            tmp1_jockey_race_data_list = []
+            tmp_jockey_race_data_list = []
             for j_row in range(1, len(all_jockey_rows)):
                 place = all_jockey_rows[j_row].find_elements_by_tag_name("td")[1].find_element_by_tag_name("a").text[1:3]
                 w = all_jockey_rows[j_row].find_elements_by_tag_name("td")[2].text
@@ -355,21 +329,11 @@ def scrHorseAndJockeyRaceData(race_url):
                 elif "良" in gs:
                     ground_status = "G"
                 goal_time = all_jockey_rows[j_row].find_elements_by_tag_name("td")[16].text
+                tmp_jockey_race_data_list.append([place, weather, burden_weight, race_course_gnd, distance, ground_status, goal_time])
+            jockey_race_data_list.append(tmp_jockey_race_data_list)
 
-                if place == "" or weather == "" or burden_weight == "" or race_course_gnd == "" or distance == "" or ground_status == "" or goal_time == "":
-                    
-                    continue
-
-                # 開催レース情報と合致する騎手データのみを取得
-                if (racedata01_distance - 400 < distance and distance < racedata01_distance + 400) and racedata01_race_course_gnd == race_course_gnd:
-                    tmp1_jockey_race_data_list.append([place, weather, burden_weight, race_course_gnd, distance, ground_status, goal_time])
-                    print("{} {}".format(cnt, [place, weather, burden_weight, race_course_gnd, distance, ground_status, goal_time]))
-                    cnt += 1
-
-            tmp0_jockey_race_data_list += tmp1_jockey_race_data_list
-
-            
-            if cnt > 100:
+            cnt += 1
+            if cnt > 11:
                 break
 
             try:
@@ -378,11 +342,292 @@ def scrHorseAndJockeyRaceData(race_url):
                 driver.execute_script("arguments[0].click();", target) #javascriptでクリック処理
             except IndexError:
                 break
-        
-        jockey_race_data_list.append(tmp0_jockey_race_data_list)
 
     return horse_race_data_list, horse_name_list, jockey_race_data_list, jockey_name_list
 
+
+
+
+def scrHorseBloodlineData(race_url):
+    options = Options()
+    options.add_argument('--headless')    # ヘッドレスモードに
+    driver = webdriver.Chrome(chrome_options=options) 
+    wait = WebDriverWait(driver,5)
+
+    driver.get(race_url) # 速度ボトルネック
+    time.sleep(1)
+    wait.until(EC.presence_of_all_elements_located)
+    all_race_rows = driver.find_element_by_class_name('Shutuba_Table').find_elements_by_tag_name("tr")
+    horse_name_list = []
+    horse_url_list = []
+    #for r_row in range(2,len(all_race_rows)):
+    for r_row in range(2,3):
+        horse_name_list.append(all_race_rows[r_row].find_element_by_class_name('HorseInfo').find_element_by_tag_name("a").get_attribute("title"))
+        horse_url_list.append(all_race_rows[r_row].find_element_by_class_name('HorseInfo').find_element_by_tag_name("a").get_attribute("href"))
+
+    # 血統馬のレース成績をリストに保存
+    horse_race_data_list = []
+    for r_row in range(len(horse_name_list)):
+        print(horse_name_list[r_row])
+        driver.get(horse_url_list[r_row])
+        time.sleep(1)
+        wait.until(EC.presence_of_all_elements_located)
+
+        bloodline_link = driver.find_element_by_class_name('db_prof_area_02').find_element_by_class_name('detail_link').find_element_by_tag_name("a").get_attribute("href")
+        driver.get(bloodline_link)
+        time.sleep(1)
+        wait.until(EC.presence_of_all_elements_located)
+
+        all_horse_bloodline_rows = driver.find_element_by_class_name('blood_table').find_elements_by_tag_name("tr")
+
+        # 血統図
+        # [父、父祖父、父祖母、母、母祖父、母祖母]　TODO
+        # 曽祖父の血統は無視している　TODO
+        horse_bloodline_name_list = [
+            [
+                all_horse_bloodline_rows[0].find_elements_by_tag_name("td")[0].find_element_by_tag_name("a").text.split("\n")[0],
+                all_horse_bloodline_rows[0].find_elements_by_tag_name("td")[1].find_element_by_tag_name("a").text.split("\n")[0],
+                all_horse_bloodline_rows[8].find_elements_by_tag_name("td")[0].find_element_by_tag_name("a").text.split("\n")[0]
+            ],
+            [
+                all_horse_bloodline_rows[0].find_elements_by_tag_name("td")[1].find_element_by_tag_name("a").text.split("\n")[0],
+                "NULL",
+                "NULL"
+            ],
+            [
+                all_horse_bloodline_rows[8].find_elements_by_tag_name("td")[0].find_element_by_tag_name("a").text.split("\n")[0],
+                "NULL",
+                "NULL"
+            ],
+            [
+                all_horse_bloodline_rows[16].find_elements_by_tag_name("td")[0].find_element_by_tag_name("a").text.split("\n")[0],
+                all_horse_bloodline_rows[16].find_elements_by_tag_name("td")[1].find_element_by_tag_name("a").text.split("\n")[0],
+                all_horse_bloodline_rows[24].find_elements_by_tag_name("td")[0].find_element_by_tag_name("a").text.split("\n")[0]
+            ],
+            [
+                all_horse_bloodline_rows[16].find_elements_by_tag_name("td")[1].find_element_by_tag_name("a").text.split("\n")[0],
+                "NULL",
+                "NULL"
+            ],
+            [
+                all_horse_bloodline_rows[24].find_elements_by_tag_name("td")[0].find_element_by_tag_name("a").text.split("\n")[0],
+                "NULL",
+                "NULL"
+            ]
+        ]
+        horse_bloodline_url_list = [
+            [
+                all_horse_bloodline_rows[0].find_elements_by_tag_name("td")[0].find_element_by_tag_name("a").get_attribute("href"),
+                all_horse_bloodline_rows[0].find_elements_by_tag_name("td")[1].find_element_by_tag_name("a").get_attribute("href"),
+                all_horse_bloodline_rows[8].find_elements_by_tag_name("td")[0].find_element_by_tag_name("a").get_attribute("href")
+            ],
+            [
+                all_horse_bloodline_rows[0].find_elements_by_tag_name("td")[1].find_element_by_tag_name("a").get_attribute("href"),
+                "NULL",
+                "NULL"
+            ],
+            [
+                all_horse_bloodline_rows[8].find_elements_by_tag_name("td")[0].find_element_by_tag_name("a").get_attribute("href"),
+                "NULL",
+                "NULL"
+            ],
+            [
+                all_horse_bloodline_rows[16].find_elements_by_tag_name("td")[0].find_element_by_tag_name("a").get_attribute("href"),
+                all_horse_bloodline_rows[16].find_elements_by_tag_name("td")[1].find_element_by_tag_name("a").get_attribute("href"),
+                all_horse_bloodline_rows[24].find_elements_by_tag_name("td")[0].find_element_by_tag_name("a").get_attribute("href")
+            ],
+            [
+                all_horse_bloodline_rows[16].find_elements_by_tag_name("td")[1].find_element_by_tag_name("a").get_attribute("href"),
+                "NULL",
+                "NULL"
+            ],
+            [
+                all_horse_bloodline_rows[24].find_elements_by_tag_name("td")[0].find_element_by_tag_name("a").get_attribute("href"),
+                "NULL",
+                "NULL"
+            ]
+        ]
+
+        for b_row in range(len(horse_bloodline_name_list)):
+            driver.get(horse_bloodline_url_list[b_row][0])
+            time.sleep(1)
+            wait.until(EC.presence_of_all_elements_located)
+
+            horse_sanku_rows = driver.find_element_by_class_name('db_breeding_table_01').find_elements_by_tag_name("tr")
+            print(len(horse_sanku_rows))
+
+            tmp_horse_blood_data_list = []
+            # 名前
+            tmp_horse_blood_data_list.append(horse_bloodline_name_list[b_row][0])
+            # URL
+            tmp_horse_blood_data_list.append(horse_bloodline_url_list[b_row][0])
+            # 父URL
+            tmp_horse_blood_data_list.append(horse_bloodline_url_list[b_row][1])
+            # 母URL
+            tmp_horse_blood_data_list.append(horse_bloodline_url_list[b_row][2])
+            # 産駒数
+            tmp_horse_blood_data_list.append(int(horse_sanku_rows[1].find_elements_by_tag_name("td")[0].find_element_by_tag_name("a").text[0:-1]))
+            # 産駒勝利数
+            tmp_horse_blood_data_list.append(int(horse_sanku_rows[2].find_elements_by_tag_name("td")[0].find_element_by_tag_name("a").text[0:-1]))
+            # 産駒重賞数
+            tmp_horse_blood_data_list.append(int(horse_sanku_rows[1].find_elements_by_tag_name("td")[1].find_element_by_tag_name("a").text[0:-1]))
+            # 産駒GI勝利数
+            tmp_horse_blood_data_list.append(int(horse_sanku_rows[2].find_elements_by_tag_name("td")[1].find_element_by_tag_name("a").text[0:-1]))
+
+            print(tmp_horse_blood_data_list)
+            # スピード指数（血統馬のレース結果をスクレイピング）TODO
+
+
+
+
+
+
+def makeDatabeseFoal():
+    # DBを作成する
+    # すでに存在していれば、それにアスセスする。
+    dbname = 'Foal.db'
+    conn = sqlite3.connect(dbname)
+    # データベースへのコネクションを閉じる。(必須)
+    conn.close()
+
+    # DBにアスセス
+    conn = sqlite3.connect(dbname)
+    # sqliteを操作するカーソルオブジェクトを作成
+    cur = conn.cursor()
+
+    # bloodというtableを作成
+    try:
+        cur.execute('CREATE TABLE foal( \
+        id INTEGER PRIMARY KEY AUTOINCREMENT, \
+        name STRING, \
+        name_child STRING, \
+        place STRING, \
+        distance INTEGER, \
+        race_course_gnd STRING, \
+        weather STRING, \
+        ground_status STRING, \
+        speedfigure REAL \
+        )')
+    except(sqlite3.OperationalError):
+        pass
+    # データベースへコミット。これで変更が反映される。
+    conn.commit()
+    conn.close()
+
+
+def updateDatabeseFoal(name, url, url_father, url_mother, num_children, num_children_win, num_children_zyusho_win, num_children_G1_win):
+    dbname = 'Foal.db'
+    conn = sqlite3.connect(dbname)
+    cur = conn.cursor()
+
+    # データを入力 OR 更新
+    cur.execute('SELECT * FROM foal WHERE name = "{}" AND url = "{}" AND url_father = "{}" AND url_mother = "{}"'.format(place, distance, race_course_gnd, weather, ground_status))
+    row_fetched = cur.fetchall()
+    if len(row_fetched) == 0:
+        print("INSERT")
+        cur.execute('INSERT INTO foal(name, url, url_father, url_mother, num_children, num_children_win, num_children_zyusho_win, num_children_G1_win) \
+        values("{}","{}","{}","{}",{},{},{},{},{})'.format(name, url, url_father, url_mother, num_children, num_children_win, num_children_zyusho_win, num_children_G1_win))
+    else:
+        print("UPDATE")
+        cur.execute('UPDATE foal SET num_children = {}, num_children_win = {}, num_children_zyusho_win = {}, num_children_G1_win = {} WHERE id = {}'.format(num_children, num_children_win, num_children_zyusho_win, num_children_G1_win, row_fetched[0][0]))
+
+    conn.commit()
+
+    cur.close()
+    conn.close()
+
+
+
+def readDatabeseFoal():
+    dbname = 'Foal.db'
+    conn = sqlite3.connect(dbname)
+    cur = conn.cursor()
+
+    cur.execute('SELECT * FROM foal')
+    row_fetched = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return row_fetched
+
+
+
+
+
+
+
+
+
+
+def makeDatabeseBloodline():
+    # DBを作成する
+    # すでに存在していれば、それにアスセスする。
+    dbname = 'Bloodline.db'
+    conn = sqlite3.connect(dbname)
+    # データベースへのコネクションを閉じる。(必須)
+    conn.close()
+
+    # DBにアスセス
+    conn = sqlite3.connect(dbname)
+    # sqliteを操作するカーソルオブジェクトを作成
+    cur = conn.cursor()
+
+    # bloodというtableを作成
+    try:
+        cur.execute('CREATE TABLE blood( \
+        id INTEGER PRIMARY KEY AUTOINCREMENT, \
+        name STRING, \
+        url STRING, \
+        url_father STRING, \
+        url_mother STRING, \
+        num_children INTEGER, \
+        num_children_win INTEGER, \
+        num_children_zyusho_win INTEGER, \
+        num_children_G1_win INTEGER \
+        )')
+    except(sqlite3.OperationalError):
+        pass
+    # データベースへコミット。これで変更が反映される。
+    conn.commit()
+    conn.close()
+
+
+def updateDatabeseBloodline(name, url, url_father, url_mother, num_children, num_children_win, num_children_zyusho_win, num_children_G1_win):
+    dbname = 'Bloodline.db'
+    conn = sqlite3.connect(dbname)
+    cur = conn.cursor()
+
+    # データを入力 OR 更新
+    cur.execute('SELECT * FROM blood WHERE name = "{}" AND url = "{}" AND url_father = "{}" AND url_mother = "{}"'.format(place, distance, race_course_gnd, weather, ground_status))
+    row_fetched = cur.fetchall()
+    if len(row_fetched) == 0:
+        print("INSERT")
+        cur.execute('INSERT INTO blood(name, url, url_father, url_mother, num_children, num_children_win, num_children_zyusho_win, num_children_G1_win) \
+        values("{}","{}","{}","{}",{},{},{},{},{})'.format(name, url, url_father, url_mother, num_children, num_children_win, num_children_zyusho_win, num_children_G1_win))
+    else:
+        print("UPDATE")
+        cur.execute('UPDATE blood SET num_children = {}, num_children_win = {}, num_children_zyusho_win = {}, num_children_G1_win = {} WHERE id = {}'.format(num_children, num_children_win, num_children_zyusho_win, num_children_G1_win, row_fetched[0][0]))
+
+    conn.commit()
+
+    cur.close()
+    conn.close()
+
+
+
+def readDatabeseBloodline():
+    dbname = 'Bloodline.db'
+    conn = sqlite3.connect(dbname)
+    cur = conn.cursor()
+
+    cur.execute('SELECT * FROM blood')
+    row_fetched = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return row_fetched
 
 
 
@@ -470,16 +715,21 @@ if __name__ == '__main__':
 
     # ベースタイム　と　馬場指数　のデータベースを作成
     makeDatabeseBaseTimeFigureAndGndFigure()
+    # 血統情報のデータベースを作成
+    makeDatabeseBloodline()
     
-    # sqlデータの読み込み
-    sql_dir = "../data/all_sq"
-    horse_data_list = readHorseSqlDatabase(sql_dir)
-    race_data_list = readRaceSqlDatabase(sql_dir)
+    # csvデータの読み込み
+    csv_dir = "../data/all"
+    race_data_list, horse_data_list = read_csv_data(csv_dir)
     rap_time = time.time() - start
     print("rap_time:{0}[sec]".format(rap_time))
 
+    race_url = "https://race.netkeiba.com/race/shutuba.html?race_id=202105020811&rf=race_submenu"
+    scrHorseBloodlineData(race_url)
+
+
     # 出走馬、ジョッキーの過去の戦績
-    race_url = "https://race.netkeiba.com/race/shutuba.html?race_id=202105021211&rf=race_list"
+    race_url = "https://race.netkeiba.com/race/shutuba.html?race_id=202105020811&rf=race_submenu"
     horse_race_data_list, horse_name_list, jockey_race_data_list, jockey_name_list = scrHorseAndJockeyRaceData(race_url)
 
     # 出走馬の過去の戦績（重複なし）
@@ -505,6 +755,8 @@ if __name__ == '__main__':
     horse_base_time_and_gnd_figure_list = []
     for i in range(len(horse_race_data_list_shr)):
         base_time, gf = calcBaseTimeFigureAndGndFigure(race_data_list, horse_data_list, horse_race_data_list_shr[i][0], horse_race_data_list_shr[i][1], horse_race_data_list_shr[i][2], horse_race_data_list_shr[i][3], horse_race_data_list_shr[i][4])
+        #print("base_time = {}".format(base_time))
+        #print("gf = {}".format(gf))
         horse_base_time_and_gnd_figure_list.append([base_time, gf])
     rap_time = time.time() - start
     print("rap_time:{0}[sec]".format(rap_time))
@@ -575,6 +827,7 @@ if __name__ == '__main__':
             print('=== エラー内容 ===')
             print('type:' + str(type(e)))
             print('args:' + str(e.args))
+            print('e自身:' + str(e))
             print(horse_result)
 
 
@@ -624,7 +877,6 @@ if __name__ == '__main__':
             speed_figure_list = []
             for j in range(len(jockey_race_data)):
                 place = jockey_race_data[j][0]
-                print(place)
                 if place in ["中山","阪神","東京","中京","札幌","函館","福島","新潟","京都","小倉"]: # 日本の中央競馬限定
                     weather = jockey_race_data[j][1]
                     burden_weight = jockey_race_data[j][2]
