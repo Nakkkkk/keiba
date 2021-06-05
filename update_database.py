@@ -58,7 +58,7 @@ def makeDatabeseRace(sql_dir):
     conn.close()
 
     # DBにアスセス
-    conn = sqlite3.connect(dbname)
+    conn = sqlite3.connect(sql_dir + dbname)
     # sqliteを操作するカーソルオブジェクトを作成
     cur = conn.cursor()
 
@@ -228,7 +228,7 @@ def makeDatabeseHorse(sql_dir):
     conn.close()
 
     # DBにアスセス
-    conn = sqlite3.connect(dbname)
+    conn = sqlite3.connect(sql_dir + dbname)
     # sqliteを操作するカーソルオブジェクトを作成
     cur = conn.cursor()
 
@@ -730,14 +730,16 @@ def readDatabese(dbname, tablename):
 if __name__ == "__main__":
     sql_dir = "../data/all_sq"
 
+    # データベースの作成
+    #makeDatabeseHorse(sql_dir)
+    #makeDatabeseRace(sql_dir)
+
+    # データベースの更新
     path_db_update_list = makeDatabaseUpdateList(sql_dir)
-
     race_info_list, horse_infos_list = updateDatabaseByList(path_db_update_list)
-
     print("### update Race.db ###")
     for ri in race_info_list:
         updateDatabeseRace(sql_dir, ri[0], ri[1], ri[2], ri[3], ri[4], ri[5], ri[6], ri[7], ri[8], ri[9], ri[10], ri[11], ri[12], ri[13], ri[14], ri[15], ri[16], ri[17], ri[18], ri[19], ri[20], ri[21], ri[22], ri[23], ri[24], ri[25], ri[26], ri[27], ri[28], ri[29])
-
     print("### update Horse.db ###")
     for horse_infos in horse_infos_list:
         for hi in horse_infos:
@@ -745,7 +747,7 @@ if __name__ == "__main__":
 
     
     """
-    # データベースチェック用
+    # データベースチェック
     row_fetched = readDatabese("../data/all_sq/Horse.db", "horse")
     print(row_fetched[-16])
     print(row_fetched[-17])
