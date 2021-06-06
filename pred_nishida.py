@@ -22,6 +22,9 @@ from selenium.webdriver.chrome.options import Options
 from multiprocessing.dummy import Pool
 import sqlite3
 import logging
+import sys
+
+
 
 
 # 距離指数の計算
@@ -419,6 +422,36 @@ def makeDatabeseBaseTimeFigureAndGndFigure():
 
 
 
+def makeDatabeseBlood():
+    # DBを作成する
+    # すでに存在していれば、それにアスセスする。
+    dbname = 'Blood.db'
+    conn = sqlite3.connect(dbname)
+    # データベースへのコネクションを閉じる。(必須)
+    conn.close()
+
+    # DBにアスセス
+    conn = sqlite3.connect(dbname)
+    # sqliteを操作するカーソルオブジェクトを作成
+    cur = conn.cursor()
+
+    # btgfというtableを作成
+    try:
+        cur.execute('CREATE TABLE blood( \
+        id INTEGER PRIMARY KEY AUTOINCREMENT, \
+        horse_id INTEGER, \
+        horse_id_father INTEGER, \
+        horse_id_mother INTEGER \
+        )')
+    except(sqlite3.OperationalError):
+        pass
+    # データベースへコミット。これで変更が反映される。
+    conn.commit()
+    conn.close()
+
+
+
+
 def updateDatabeseBaseTimeFigureAndGndFigure(place, distance, race_course_gnd, weather, ground_status, basetime, gndfigure):
     dbname = 'BaseTimeAndGndFigure.db'
     conn = sqlite3.connect(dbname)
@@ -457,6 +490,98 @@ def readDatabeseBaseTimeFigureAndGndFigure():
 
 
 
+
+
+def scrHorseBloodline(race_url):
+    options = Options()
+    options.add_argument('--headless')    # ヘッドレスモードに
+    driver = webdriver.Chrome(chrome_options=options) 
+    wait = WebDriverWait(driver,5)
+
+    driver.get(race_url) # 速度ボトルネック
+    time.sleep(1)
+    wait.until(EC.presence_of_all_elements_located)
+
+    all_race_rows = driver.find_element_by_class_name('Shutuba_Table').find_elements_by_tag_name("tr")
+    horse_name_list = []
+    horse_url_list = []
+    for r_row in range(2,len(all_race_rows)):
+        #for r_row in range(2 + 4,2+5):
+        horse_name_list.append(all_race_rows[r_row].find_element_by_class_name('HorseInfo').find_element_by_tag_name("a").get_attribute("title"))
+        horse_url_list.append(all_race_rows[r_row].find_element_by_class_name('HorseInfo').find_element_by_tag_name("a").get_attribute("href"))
+
+    for r_row in range(len(horse_name_list)):
+        print(horse_name_list[r_row])
+
+        # 出走馬の詳細を検索
+        driver.get(horse_url_list[r_row])
+        time.sleep(1)
+        wait.until(EC.presence_of_all_elements_located)
+
+        bloodlilne_url = driver.find_element_by_class_name('db_prof_area_02').find_elements_by_class_name('detail_link')[0].find_element_by_tag_name("a").get_attribute("href")
+
+        # 出走馬の血統図を検索
+        driver.get(bloodlilne_url)
+        time.sleep(1)
+        wait.until(EC.presence_of_all_elements_located)
+
+        bloodlilne_tree_table = driver.find_element_by_class_name('blood_table').find_elements_by_tag_name("tr")
+        bloodlilne_tree_urls = [
+            bloodlilne_tree_table[0].find_elements_by_tag_name("td")[0].find_elements_by_tag_name("a")[0].get_attribute("href"), # father
+            bloodlilne_tree_table[16].find_elements_by_tag_name("td")[0].find_elements_by_tag_name("a")[0].get_attribute("href"), # mother
+            bloodlilne_tree_table[0].find_elements_by_tag_name("td")[1].find_elements_by_tag_name("a")[0].get_attribute("href"), # father's father
+            bloodlilne_tree_table[16].find_elements_by_tag_name("td")[1].find_elements_by_tag_name("a")[0].get_attribute("href"), # mother's father
+            bloodlilne_tree_table[8].find_elements_by_tag_name("td")[0].find_elements_by_tag_name("a")[0].get_attribute("href"), # father's mother
+            bloodlilne_tree_table[24].find_elements_by_tag_name("td")[0].find_elements_by_tag_name("a")[0].get_attribute("href") # mother's mother
+        ]
+
+        # 出走馬の親の子供（Foal）のスピード指数を計算
+        for bt_url in bloodlilne_tree_urls:
+            driver.get(bt_url)
+            time.sleep(1)
+            wait.until(EC.presence_of_all_elements_located)
+
+            foal_url = driver.find_elements_by_class_name('db_breeding_table_01')[0].find_elements_by_tag_name("tr")[1].find_elements_by_tag_name("a")[0].get_attribute("href")
+
+            driver.get(foal_url)
+            time.sleep(1)
+            wait.until(EC.presence_of_all_elements_located)
+            
+            cnt = 0
+            while True:
+                cnt += 1
+                print("cnt = {}".format(cnt))
+                print("")
+                time.sleep(1)
+                wait.until(EC.presence_of_all_elements_located)
+
+                foal_table = driver.find_element_by_class_name('race_table_01').find_elements_by_tag_name("tr")
+                for i_f in range(1, len(foal_table)):
+                    foal_id = foal_table[i_f].find_elements_by_tag_name("td")[1].find_elements_by_tag_name("a")[0].get_attribute("href").split("/")[-2]
+                    print(foal_id)
+
+                try:
+                    target = driver.find_elements_by_link_text("次")[0]
+                    driver.execute_script("arguments[0].click();", target) #javascriptでクリック処理
+                except IndexError:
+                    print("while break")
+                    break
+
+
+
+        #father_url = bloodlilne_tree_table[0].find_elements_by_tag_name("a")[0].get_attribute("href")
+        #mother_url = bloodlilne_tree_table[16].find_elements_by_tag_name("a")[0].get_attribute("href")
+        #father_bloodlilne_tree_url = bloodlilne_tree_table[0].find_elements_by_tag_name("a")[0].get_attribute("href")
+        #mother_bloodlilne_tree_url = bloodlilne_tree_table[16].find_elements_by_tag_name("a")[0].get_attribute("href")
+
+        
+
+
+
+
+
+
+
 def get_unique_list(seq):
     seen = []
     return [x for x in seq if x not in seen and not seen.append(x)]
@@ -464,6 +589,16 @@ def get_unique_list(seq):
 
 
 if __name__ == '__main__':
+
+
+    #race_url = "https://race.netkeiba.com/race/shutuba.html?race_id=202105030211&rf=race_submenu"
+
+    # 血統情報のデータベースを作成
+    #makeDatabeseBlood()
+
+    #scrHorseBloodline(race_url)
+
+    #pass
 
     start = time.time()
 
@@ -624,7 +759,7 @@ if __name__ == '__main__':
             speed_figure_list = []
             for j in range(len(jockey_race_data)):
                 place = jockey_race_data[j][0]
-                print(place)
+                #print(place)
                 if place in ["中山","阪神","東京","中京","札幌","函館","福島","新潟","京都","小倉"]: # 日本の中央競馬限定
                     weather = jockey_race_data[j][1]
                     burden_weight = jockey_race_data[j][2]
@@ -646,21 +781,21 @@ if __name__ == '__main__':
                             goal_time = float(gt[1]) + float(gt[0])*60
                         else:
                             goal_time = None
-                        print("goal_time = {}".format(goal_time))
+                        #print("goal_time = {}".format(goal_time))
                         # ベースタイム算出
-                        print("base_time = {}".format(base_time))
+                        #print("base_time = {}".format(base_time))
                         # 距離指数算出
                         df = calcDistanceFigure(base_time)
-                        print("df = {}".format(df))
+                        #print("df = {}".format(df))
                         # 馬場指数算出
                         if gf == None:
 
                             continue
 
-                        print("gf = {}".format(gf))
+                        #print("gf = {}".format(gf))
                         # スピード指数算出
                         speed_figure = (base_time*10 - goal_time*10) * df + gf + (burden_weight - 55) * 2 + 80
-                        print("speed_figure = {}".format(speed_figure))
+                        #print("speed_figure = {}".format(speed_figure))
 
                         speed_figure_list.append(speed_figure)
 

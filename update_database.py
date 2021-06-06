@@ -346,7 +346,7 @@ def updateDatabeseHorse(
 
 
 
-def makeDatabaseUpdateList(sql_dir):
+def makeHorseAndRaceDatabaseUpdateList(sql_dir):
     # 今日の日付
     dt_now = datetime.datetime.now()
     dt_now_strf = dt_now.strftime('%Y-%m-%d-%H:%M:%S')
@@ -420,7 +420,7 @@ def makeDatabaseUpdateList(sql_dir):
 
 
 
-def updateDatabaseByList(txtname):
+def getInfoFromHorseAndRaceDatabaseUpdateList(txtname):
     # sqlデータの読み込み
     sql_dir = "../data/all_sq"
     horse_data_cur, horse_data_conn = makeHorseSqlDatabaseCursor(sql_dir)
@@ -757,10 +757,11 @@ if __name__ == "__main__":
     # データベースの作成
     #makeDatabeseHorse(sql_dir)
     #makeDatabeseRace(sql_dir)
+    #makeDatabeseBlood(sql_dir)
 
-    # データベースの更新
-    path_db_update_list = makeDatabaseUpdateList(sql_dir)
-    race_info_list, horse_infos_list = updateDatabaseByList(path_db_update_list)
+    # Horse, Raceデータベースの更新
+    path_db_update_list = makeHorseAndRaceDatabaseUpdateList(sql_dir)
+    race_info_list, horse_infos_list = getInfoFromHorseAndRaceDatabaseUpdateList(path_db_update_list)
     print("### update Race.db ###")
     for ri in race_info_list:
         updateDatabeseRace(sql_dir, ri[0], ri[1], ri[2], ri[3], ri[4], ri[5], ri[6], ri[7], ri[8], ri[9], ri[10], ri[11], ri[12], ri[13], ri[14], ri[15], ri[16], ri[17], ri[18], ri[19], ri[20], ri[21], ri[22], ri[23], ri[24], ri[25], ri[26], ri[27], ri[28], ri[29])
@@ -768,6 +769,9 @@ if __name__ == "__main__":
     for horse_infos in horse_infos_list:
         for hi in horse_infos:
             updateDatabeseHorse(sql_dir, hi[0], hi[1], hi[2], hi[3], hi[4], hi[5], hi[6], hi[7], hi[8], hi[9], hi[10], hi[11], hi[12], hi[13], hi[14], hi[15], hi[16], hi[17], hi[18])
+
+    # Bloodデータベースの更新
+    #blood_info_list = getInfoFromHBloodDatabaseUpdateList(path_db_update_list)
 
     
     """
