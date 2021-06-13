@@ -754,10 +754,9 @@ def readDatabese(dbname, tablename):
 if __name__ == "__main__":
     sql_dir = "../data/all_sq"
 
-    # データベースの作成
+    # Horse, Raceデータベースの作成
     #makeDatabeseHorse(sql_dir)
     #makeDatabeseRace(sql_dir)
-    #makeDatabeseBlood(sql_dir)
 
     # Horse, Raceデータベースの更新
     path_db_update_list = makeHorseAndRaceDatabaseUpdateList(sql_dir)
