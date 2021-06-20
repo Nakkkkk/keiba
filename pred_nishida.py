@@ -1,3 +1,5 @@
+# coding=utf8
+
 # author Nakkkkk (https://github.com/Nakkkkk)
 # このプログラムによって発生した損害に対し、いかなる責任をも負わないとする。
 # I assume no responsibility for any damages caused by this program.
@@ -9,7 +11,7 @@ from bs4 import BeautifulSoup
 import os
 from natsort import natsorted
 import glob
-import seaborn as sns
+#import seaborn as sns
 import matplotlib.pyplot as plt
 import statistics
 import time
@@ -34,9 +36,9 @@ def calcDistanceFigure(base_time):
 
 
 # 馬のSQLデータベースの読み込み
-def readHorseSqlDatabase(sql_dir):
-    dbname = '/Horse.db'
-    conn = sqlite3.connect(sql_dir + dbname)
+def readHorseSqlDatabase(data_dir):
+    dbname = '/all_sq/Horse.db'
+    conn = sqlite3.connect(data_dir + dbname)
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
@@ -53,9 +55,9 @@ def readHorseSqlDatabase(sql_dir):
 
 
 # レースのSQLデータベースの読み込み
-def readRaceSqlDatabase(sql_dir):
-    dbname = '/Race.db'
-    conn = sqlite3.connect(sql_dir + dbname)
+def readRaceSqlDatabase(data_dir):
+    dbname = '/all_sq/Race.db'
+    conn = sqlite3.connect(data_dir + dbname)
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
@@ -72,7 +74,7 @@ def readRaceSqlDatabase(sql_dir):
 
 
 # ベースタイムと馬場指数の計算 TODO
-def calcBaseTimeFigureAndGndFigure(race_data_list, horse_data_list, place, distance, race_course_gnd, weather, ground_status):
+def calcBaseTimeFigureAndGndFigure(logger, data_dir, race_data_list, horse_data_list, place, distance, race_course_gnd, weather, ground_status):
     ave_time_list = [] # 1〜3位平均タイム
     base_time_list = [] # ベースタイム
     bt_ri_list = [] # ベースタイム用のrace_idリスト
@@ -81,7 +83,7 @@ def calcBaseTimeFigureAndGndFigure(race_data_list, horse_data_list, place, dista
 
     # ベースタイム　と　馬場指数　のデータベースと照合
     # データベースにデータがあれば、それをリターン
-    db_list = readDatabeseBaseTimeFigureAndGndFigure()
+    db_list = readDatabeseBaseTimeFigureAndGndFigure(data_dir)
     horse_race_data_list_shr_trim = []
     for i in range(len(db_list)):
         if db_list[i][1] == place and \
@@ -90,7 +92,7 @@ def calcBaseTimeFigureAndGndFigure(race_data_list, horse_data_list, place, dista
            db_list[i][4] == weather and \
            db_list[i][5] == ground_status:
 
-            print("REUSE")
+            logger.log(20, "REUSE")
             
             return db_list[i][6], db_list[i][7]
 
@@ -116,7 +118,7 @@ def calcBaseTimeFigureAndGndFigure(race_data_list, horse_data_list, place, dista
 
     # [ベースタイム] 上記の条件のヒット数が1以下であれば、天候の条件を無視
     if len(gf_ri_list) < 2:
-        print("[gf_ri_list] conditions conditions did not hit !")
+        logger.log(20, "[gf_ri_list] conditions conditions did not hit !")
         gf_ri_list = []
         for row in range(len(race_data_list)):
             ri = race_data_list[row]["race_id"]
@@ -130,7 +132,7 @@ def calcBaseTimeFigureAndGndFigure(race_data_list, horse_data_list, place, dista
 
     # [馬場指数] 上記の条件のヒット数が1以下であれば、指定の競馬場　かつ　指定の距離　かつ　芝ダ障　のrace_idをリストにする
     if len(bt_ri_list) < 2:
-        print("[base_time] conditions did not hit !")
+        logger.log(20, "[base_time] conditions did not hit !")
         bt_ri_list = []
         for row in range(len(race_data_list)):
             ri = race_data_list[row]["race_id"]
@@ -179,11 +181,11 @@ def calcBaseTimeFigureAndGndFigure(race_data_list, horse_data_list, place, dista
 
     if len(gf_ri_list) != len(ave_time_list) or len(bt_ri_list) != len(base_time_list):
         
-        print("")
-        print("")
-        print("#######    len(gf_ri_list) != len(ave_time_list) or len(bt_ri_list) != len(base_time_list)")
-        print("")
-        print("")
+        logger.log(20, "")
+        logger.log(20, "")
+        logger.log(20, "#######    len(gf_ri_list) != len(ave_time_list) or len(bt_ri_list) != len(base_time_list)")
+        logger.log(20, "")
+        logger.log(20, "")
 
         return
 
@@ -207,14 +209,16 @@ def calcBaseTimeFigureAndGndFigure(race_data_list, horse_data_list, place, dista
 
 
     # データベースに計算結果を保存
-    updateDatabeseBaseTimeFigureAndGndFigure(place, distance, race_course_gnd, weather, ground_status, base_time, gnd_figure)
+    updateDatabeseBaseTimeFigureAndGndFigure(logger, data_dir, place, distance, race_course_gnd, weather, ground_status, base_time, gnd_figure)
 
 
     return base_time, gnd_figure   # 指数として出力するため10かけている
 
 
 
-def scrHorseAndJockeyRaceData(race_url):
+
+
+def scrHorseAndJockeyRaceData(logger, race_url):
     options = Options()
     options.add_argument('--headless')    # ヘッドレスモードに
     driver = webdriver.Chrome(chrome_options=options) 
@@ -252,7 +256,7 @@ def scrHorseAndJockeyRaceData(race_url):
     # 馬のレース成績をリストに保存
     horse_race_data_list = []
     for r_row in range(len(horse_name_list)):
-        print(horse_name_list[r_row])
+        logger.log(20, horse_name_list[r_row])
         driver.get(horse_url_list[r_row])
         time.sleep(1)
         wait.until(EC.presence_of_all_elements_located)
@@ -299,7 +303,7 @@ def scrHorseAndJockeyRaceData(race_url):
     # ジョッキーのレース成績をリストに保存（直近200試合を参照）
     jockey_race_data_list = []
     for r_row in range(len(jockey_name_list)):
-        print(jockey_name_list[r_row])
+        logger.log(20, jockey_name_list[r_row])
         driver.get(jockey_url_list[r_row])
 
         tmp0_jockey_race_data_list = []
@@ -351,7 +355,7 @@ def scrHorseAndJockeyRaceData(race_url):
                 # 開催レース情報と合致する騎手データのみを取得
                 if (racedata01_distance - 400 < distance and distance < racedata01_distance + 400) and racedata01_race_course_gnd == race_course_gnd:
                     tmp1_jockey_race_data_list.append([place, weather, burden_weight, race_course_gnd, distance, ground_status, goal_time])
-                    print("{} {}".format(cnt, [place, weather, burden_weight, race_course_gnd, distance, ground_status, goal_time]))
+                    logger.log(20, "{} {}".format(cnt, [place, weather, burden_weight, race_course_gnd, distance, ground_status, goal_time]))
                     cnt += 1
 
             tmp0_jockey_race_data_list += tmp1_jockey_race_data_list
@@ -362,7 +366,7 @@ def scrHorseAndJockeyRaceData(race_url):
 
             try:
                 target = driver.find_elements_by_link_text("次")[0]
-                #print(driver.find_elements_by_link_text("次"))
+                #logger.log(20, driver.find_elements_by_link_text("次"))
                 driver.execute_script("arguments[0].click();", target) #javascriptでクリック処理
             except IndexError:
                 break
@@ -374,16 +378,16 @@ def scrHorseAndJockeyRaceData(race_url):
 
 
 
-def makeDatabeseBaseTimeFigureAndGndFigure():
+def makeDatabeseBaseTimeFigureAndGndFigure(data_dir):
     # DBを作成する
     # すでに存在していれば、それにアスセスする。
-    dbname = 'BaseTimeAndGndFigure.db'
-    conn = sqlite3.connect(dbname)
+    dbname = '/all_sq/BaseTimeAndGndFigure.db'
+    conn = sqlite3.connect(data_dir + dbname)
     # データベースへのコネクションを閉じる。(必須)
     conn.close()
 
     # DBにアスセス
-    conn = sqlite3.connect(dbname)
+    conn = sqlite3.connect(data_dir + dbname)
     # sqliteを操作するカーソルオブジェクトを作成
     cur = conn.cursor()
 
@@ -407,16 +411,16 @@ def makeDatabeseBaseTimeFigureAndGndFigure():
 
 
 
-def makeDatabeseBloodFather(sql_dir):
+def makeDatabeseBloodFather(data_dir):
     # DBを作成する
     # すでに存在していれば、それにアスセスする。
-    dbname = '/BloodFather.db'
-    conn = sqlite3.connect(sql_dir + dbname)
+    dbname = '/all_sq/BloodFather.db'
+    conn = sqlite3.connect(data_dir + dbname)
     # データベースへのコネクションを閉じる。(必須)
     conn.close()
 
     # DBにアスセス
-    conn = sqlite3.connect(sql_dir + dbname)
+    conn = sqlite3.connect(data_dir + dbname)
     # sqliteを操作するカーソルオブジェクトを作成
     cur = conn.cursor()
 
@@ -436,20 +440,20 @@ def makeDatabeseBloodFather(sql_dir):
 
 
 
-def updateDatabeseBaseTimeFigureAndGndFigure(place, distance, race_course_gnd, weather, ground_status, basetime, gndfigure):
-    dbname = 'BaseTimeAndGndFigure.db'
-    conn = sqlite3.connect(dbname)
+def updateDatabeseBaseTimeFigureAndGndFigure(logger, data_dir, place, distance, race_course_gnd, weather, ground_status, basetime, gndfigure):
+    dbname = '/all_sq/BaseTimeAndGndFigure.db'
+    conn = sqlite3.connect(data_dir + dbname)
     cur = conn.cursor()
 
     # データを入力 OR 更新
     cur.execute('SELECT * FROM btgf WHERE place = "{}" AND distance = {} AND race_course_gnd = "{}" AND weather = "{}" AND ground_status = "{}"'.format(place, distance, race_course_gnd, weather, ground_status))
     row_fetched = cur.fetchall()
     if len(row_fetched) == 0:
-        print("INSERT")
+        logger.log(20, "INSERT")
         cur.execute('INSERT INTO btgf(place, distance, race_course_gnd, weather, ground_status, basetime, gndfigure) \
         values("{}",{},"{}","{}","{}",{},{})'.format(place, distance, race_course_gnd, weather, ground_status, basetime, gndfigure))
     else:
-        print("UPDATE")
+        logger.log(20, "UPDATE")
         cur.execute('UPDATE btgf SET basetime = {}, gndfigure = {} WHERE id = {}'.format(basetime, gndfigure, row_fetched[0][0]))
 
     conn.commit()
@@ -461,16 +465,16 @@ def updateDatabeseBaseTimeFigureAndGndFigure(place, distance, race_course_gnd, w
 
 
 
-def updateDatabeseBloodFather(sql_dir, horse_id_foal, horse_id_father):
-    dbname = '/BloodFather.db'
-    conn = sqlite3.connect(sql_dir + dbname)
+def updateDatabeseBloodFather(logger, data_dir, horse_id_foal, horse_id_father):
+    dbname = '/all_sq/BloodFather.db'
+    conn = sqlite3.connect(data_dir + dbname)
     cur = conn.cursor()
 
     # データを入力 OR 更新
     cur.execute('SELECT * FROM blood_father WHERE horse_id_foal = "{}" AND horse_id_father = "{}"'.format(horse_id_foal, horse_id_father))
     row_fetched = cur.fetchall()
     if len(row_fetched) == 0:
-        print("INSERT")
+        logger.log(20, "INSERT")
         cur.execute('INSERT INTO blood_father(horse_id_foal, horse_id_father) \
         values("{}","{}")'.format(horse_id_foal, horse_id_father))
 
@@ -483,9 +487,9 @@ def updateDatabeseBloodFather(sql_dir, horse_id_foal, horse_id_father):
 
 
 
-def readDatabeseBaseTimeFigureAndGndFigure():
-    dbname = 'BaseTimeAndGndFigure.db'
-    conn = sqlite3.connect(dbname)
+def readDatabeseBaseTimeFigureAndGndFigure(data_dir):
+    dbname = '/all_sq/BaseTimeAndGndFigure.db'
+    conn = sqlite3.connect(data_dir + dbname)
     cur = conn.cursor()
 
     cur.execute('SELECT * FROM btgf')
@@ -500,7 +504,7 @@ def readDatabeseBaseTimeFigureAndGndFigure():
 
 
 
-def scrHorseBloodline(race_url, sql_dir):
+def scrHorseBloodline(logger, race_url, data_dir):
     options = Options()
     options.add_argument('--headless')    # ヘッドレスモードに
     driver = webdriver.Chrome(chrome_options=options) 
@@ -519,7 +523,7 @@ def scrHorseBloodline(race_url, sql_dir):
         horse_url_list.append(all_race_rows[r_row].find_element_by_class_name('HorseInfo').find_element_by_tag_name("a").get_attribute("href"))
 
     for r_row in range(len(horse_name_list)):
-        print(horse_name_list[r_row])
+        logger.log(20, horse_name_list[r_row])
 
         # 出走馬の詳細を検索
         driver.get(horse_url_list[r_row])
@@ -548,15 +552,15 @@ def scrHorseBloodline(race_url, sql_dir):
         for bt_url in bloodlilne_tree_urls:
             father_id = bt_url.split("/")[-2]
 
-            dbname = '/BloodFather.db'
-            conn = sqlite3.connect(sql_dir + dbname)
+            dbname = '/all_sq/BloodFather.db'
+            conn = sqlite3.connect(data_dir + dbname)
             cur = conn.cursor()
             # すでにfather_idがデータベースにあるか確認
             cur.execute('SELECT * FROM blood_father WHERE horse_id_father = "{}"'.format(father_id))
             row_fetched = cur.fetchall()
             if len(row_fetched) > 0:
-                print("{} already exist in {}!".format(father_id, dbname))
-                print("")
+                logger.log(20, "{} already exist in {}!".format(father_id, dbname))
+                logger.log(20, "")
                 conn.commit()
                 cur.close()
                 conn.close()
@@ -587,7 +591,7 @@ def scrHorseBloodline(race_url, sql_dir):
                 for i_f in range(1, len(foal_table)):
                     cnt += 1
                     foal_id = foal_table[i_f].find_elements_by_tag_name("td")[1].find_elements_by_tag_name("a")[0].get_attribute("href").split("/")[-2]
-                    print("{}\tfoal_id = {}".format(cnt, foal_id))
+                    logger.log(20, "{}\tfoal_id = {}".format(cnt, foal_id))
 
                     bloodlilne_father_foal_list.append([foal_id, father_id])
 
@@ -595,24 +599,18 @@ def scrHorseBloodline(race_url, sql_dir):
                     target = driver.find_elements_by_link_text("次")[0]
                     driver.execute_script("arguments[0].click();", target) #javascriptでクリック処理
                 except IndexError:
-                    print("while break")
+                    logger.log(20, "while break")
                     break
 
         
         # 父親とその子供のリストをデータベースに挿入
         for bff in bloodlilne_father_foal_list:
-            updateDatabeseBloodFather(sql_dir, bff[0], bff[1])
-
-
-        #father_url = bloodlilne_tree_table[0].find_elements_by_tag_name("a")[0].get_attribute("href")
-        #mother_url = bloodlilne_tree_table[16].find_elements_by_tag_name("a")[0].get_attribute("href")
-        #father_bloodlilne_tree_url = bloodlilne_tree_table[0].find_elements_by_tag_name("a")[0].get_attribute("href")
-        #mother_bloodlilne_tree_url = bloodlilne_tree_table[16].find_elements_by_tag_name("a")[0].get_attribute("href")
+            updateDatabeseBloodFather(logger, data_dir, bff[0], bff[1])
 
         
 
 
-def calcBloodlineSpeedFigure(race_url, sql_dir, race_data_list, horse_data_list):
+def calcBloodlineSpeedFigure(logger, race_url, data_dir, race_data_list, horse_data_list):
     foal_result = []
 
     options = Options()
@@ -628,7 +626,7 @@ def calcBloodlineSpeedFigure(race_url, sql_dir, race_data_list, horse_data_list)
     racedata01_rows = driver.find_element_by_class_name('RaceData01').find_elements_by_tag_name("span")
     racedata01_distance = int(racedata01_rows[0].text[-5:-1])
 
-    print("racedata01_distance = {} {}".format(type(racedata01_distance), racedata01_distance))
+    logger.log(20, "racedata01_distance = {} {}".format(type(racedata01_distance), racedata01_distance))
 
     # 出走馬の名前とURLを取得
     all_race_rows = driver.find_element_by_class_name('Shutuba_Table').find_elements_by_tag_name("tr")
@@ -641,7 +639,7 @@ def calcBloodlineSpeedFigure(race_url, sql_dir, race_data_list, horse_data_list)
 
     # 出走馬の血統情報から、出走レースでのスピード指数を計算
     for r_row in range(len(horse_name_list)):
-        print(horse_name_list[r_row])
+        logger.log(20, horse_name_list[r_row])
 
         # 出走馬の詳細を検索
         driver.get(horse_url_list[r_row])
@@ -683,16 +681,16 @@ def calcBloodlineSpeedFigure(race_url, sql_dir, race_data_list, horse_data_list)
         foal_race_data_list = []
         foal_horse_data_list = []
         
-        dbname_bf = '/BloodFather.db'
-        conn_bf = sqlite3.connect(sql_dir + dbname_bf)
+        dbname_bf = '/all_sq/BloodFather.db'
+        conn_bf = sqlite3.connect(data_dir + dbname_bf)
         cur_bf = conn_bf.cursor()
         for father_id in bloodlilne_tree_horse_id_list:
-            print("father_id = {}".format(father_id))
+            logger.log(20, "father_id = {}".format(father_id))
             cur_bf.execute('SELECT * FROM blood_father WHERE horse_id_father = "{}"'.format(father_id))
             foal_id_list = cur_bf.fetchall()
 
-            dbname_h = '/Horse.db'
-            conn_h = sqlite3.connect(sql_dir + dbname_h)
+            dbname_h = '/all_sq/Horse.db'
+            conn_h = sqlite3.connect(data_dir + dbname_h)
             conn_h.row_factory = sqlite3.Row
             cur_h = conn_h.cursor()
 
@@ -712,8 +710,8 @@ def calcBloodlineSpeedFigure(race_url, sql_dir, race_data_list, horse_data_list)
                     tmp_foal_horse_data_list.append(dict(row))
                 foal_horse_data_list += tmp_foal_horse_data_list
 
-                dbname_r = '/Race.db'
-                conn_r = sqlite3.connect(sql_dir + dbname_r)
+                dbname_r = '/all_sq/Race.db'
+                conn_r = sqlite3.connect(data_dir + dbname_r)
                 conn_r.row_factory = sqlite3.Row
                 cur_r = conn_r.cursor()
 
@@ -725,12 +723,12 @@ def calcBloodlineSpeedFigure(race_url, sql_dir, race_data_list, horse_data_list)
                         tmp_foal_race_data_list.append(dict(row))
 
                     if len(tmp_foal_race_data_list) == 0:
-                        print("there is no race_id = {} in {}".format(frr["race_id"], dbname_r))
+                        logger.log(20, "there is no race_id = {} in {}".format(frr["race_id"], dbname_r))
                         foal_race_data_list.append("NULL")
                     elif racedata01_distance - 400 < tmp_foal_race_data_list[0]["race_course_m"] and tmp_foal_race_data_list[0]["race_course_m"] < racedata01_distance + 400:
                         foal_race_data_list.append(tmp_foal_race_data_list[0])
                     else:
-                        #print("race_id = {} in {} distance(m) out of range {} plus_minus 200".format(frr["race_id"], dbname_r, racedata01_distance))
+                        #logger.log(20, "race_id = {} in {} distance(m) out of range {} plus_minus 200".format(frr["race_id"], dbname_r, racedata01_distance))
                         foal_race_data_list.append("NULL")
 
                 conn_r.commit()
@@ -762,15 +760,15 @@ def calcBloodlineSpeedFigure(race_url, sql_dir, race_data_list, horse_data_list)
                 goal_time = foal_horse_data_list[foal_race_idx]["goal_time"]
                 foal_race_data_list_shr.append([place, distance, race_course_gnd, weather, ground_status])
         foal_race_data_list_shr = get_unique_list(foal_race_data_list_shr)
-        print("len foal_race_data_list_shr:{}".format(len(foal_race_data_list_shr)))
+        logger.log(20, "len foal_race_data_list_shr:{}".format(len(foal_race_data_list_shr)))
 
 
         # 父親の子供の過去の戦績（重複なし）に対する　ベースタイム　と　馬場指数
         foal_base_time_and_gnd_figure_list = []
         for i in range(len(foal_race_data_list_shr)):
-            base_time, gf = calcBaseTimeFigureAndGndFigure(race_data_list, horse_data_list, foal_race_data_list_shr[i][0], foal_race_data_list_shr[i][1], foal_race_data_list_shr[i][2], foal_race_data_list_shr[i][3], foal_race_data_list_shr[i][4])
+            base_time, gf = calcBaseTimeFigureAndGndFigure(logger, data_dir, race_data_list, horse_data_list, foal_race_data_list_shr[i][0], foal_race_data_list_shr[i][1], foal_race_data_list_shr[i][2], foal_race_data_list_shr[i][3], foal_race_data_list_shr[i][4])
             foal_base_time_and_gnd_figure_list.append([base_time, gf])
-        rap_time = time.time() - start
+        #rap_time = time.time() - start
 
 
         # スピード指数の計算
@@ -793,33 +791,33 @@ def calcBloodlineSpeedFigure(race_url, sql_dir, race_data_list, horse_data_list)
                     base_time = tmp[0]
                     gf = tmp[1]
 
-                    #print("goal_time = {}".format(goal_time))
+                    #logger.log(20, "goal_time = {}".format(goal_time))
                     # ベースタイム算出
-                    #print("base_time = {}".format(base_time))
+                    #logger.log(20, "base_time = {}".format(base_time))
                     # 距離指数算出
                     df = calcDistanceFigure(base_time)
-                    #print("df = {}".format(df))
+                    #logger.log(20, "df = {}".format(df))
                     # 馬場指数算出
                     if gf == None or goal_time == None or base_time == None:
 
                         continue
 
-                    #print("gf = {}".format(gf))
+                    #logger.log(20, "gf = {}".format(gf))
                     # スピード指数算出
                     speed_figure = (base_time*10 - goal_time*10) * df + gf + (burden_weight - 55) * 2 + 80
-                    #print("speed_figure = {}".format(speed_figure))
+                    #logger.log(20, "speed_figure = {}".format(speed_figure))
 
                     foal_speed_figure_list.append(speed_figure)
 
                 except:
-                    print("can not find")
-                    print([place, distance, race_course_gnd, weather, ground_status])
+                    logger.log(20, "can not find")
+                    logger.log(20, [place, distance, race_course_gnd, weather, ground_status])
 
         ave_foal_speed_figure = statistics.mean(foal_speed_figure_list)
         std_foal_speed_figure = statistics.pstdev(foal_speed_figure_list)
-        print("len = {}".format(len(foal_speed_figure_list)))
-        print("[ave] speed_figure = {}".format(ave_foal_speed_figure))
-        print("[std] speed_figure = {}".format(std_foal_speed_figure))
+        logger.log(20, "len foal_speed_figure_list = {}".format(len(foal_speed_figure_list)))
+        logger.log(20, "[ave] speed_figure = {}".format(ave_foal_speed_figure))
+        logger.log(20, "[std] speed_figure = {}".format(std_foal_speed_figure))
 
         foal_result.append([horse_name_list[r_row], ave_foal_speed_figure])
 
@@ -834,39 +832,37 @@ def get_unique_list(seq):
 
 
 
-if __name__ == '__main__':
-    
-    race_url = "https://race.netkeiba.com/race/shutuba.html?race_id=202105030411&rf=race_submenu"
-    sql_dir = "../data/all_sq"
+
+def calcSpeedFigure(logger, race_url, data_dir):
 
     # 血統情報のデータベースを作成
-    makeDatabeseBloodFather(sql_dir)
+    makeDatabeseBloodFather(data_dir)
 
     # ベースタイム　と　馬場指数　のデータベースを作成
-    makeDatabeseBaseTimeFigureAndGndFigure()
+    makeDatabeseBaseTimeFigureAndGndFigure(data_dir)
 
     start = time.time()
 
     # sqlデータの読み込み
-    horse_data_list = readHorseSqlDatabase(sql_dir)
-    race_data_list = readRaceSqlDatabase(sql_dir)
+    horse_data_list = readHorseSqlDatabase(data_dir)
+    race_data_list = readRaceSqlDatabase(data_dir)
     rap_time = time.time() - start
-    print("rap_time:{0}[sec]".format(rap_time))
+    logger.log(20, "rap_time:{0}[sec]".format(rap_time))
 
     # 出走馬の血統情報をデータベース書き込み
-    scrHorseBloodline(race_url, sql_dir)
+    scrHorseBloodline(logger, race_url, data_dir)
     rap_time = time.time() - start
-    print("rap_time:{0}[sec]".format(rap_time))
+    logger.log(20, "rap_time:{0}[sec]".format(rap_time))
 
     # 血統情報から出走馬のスピード指数を計算
-    foal_result = calcBloodlineSpeedFigure(race_url, sql_dir, race_data_list, horse_data_list)
+    foal_result = calcBloodlineSpeedFigure(logger, race_url, data_dir, race_data_list, horse_data_list)
     rap_time = time.time() - start
-    print("rap_time:{0}[sec]".format(rap_time))
+    logger.log(20, "rap_time:{0}[sec]".format(rap_time))
 
     # 出走馬、ジョッキーの過去の戦績
-    horse_race_data_list, horse_name_list, jockey_race_data_list, jockey_name_list = scrHorseAndJockeyRaceData(race_url)
+    horse_race_data_list, horse_name_list, jockey_race_data_list, jockey_name_list = scrHorseAndJockeyRaceData(logger, race_url)
     rap_time = time.time() - start
-    print("rap_time:{0}[sec]".format(rap_time))
+    logger.log(20, "rap_time:{0}[sec]".format(rap_time))
 
     # 出走馬の過去の戦績（重複なし）
     horse_race_data_list_shr = []
@@ -882,26 +878,26 @@ if __name__ == '__main__':
                 goal_time = horse_race_data_list[i][j][6]
                 horse_race_data_list_shr.append([place, distance, race_course_gnd, weather, ground_status])
     horse_race_data_list_shr = get_unique_list(horse_race_data_list_shr)
-    print("len horse_race_data_list_shr:{}".format(len(horse_race_data_list_shr)))
+    logger.log(20, "len horse_race_data_list_shr:{}".format(len(horse_race_data_list_shr)))
     rap_time = time.time() - start
-    print("rap_time:{0}[sec]".format(rap_time))
+    logger.log(20, "rap_time:{0}[sec]".format(rap_time))
 
 
     # 出走馬の過去の戦績（重複なし）に対する　ベースタイム　と　馬場指数
     horse_base_time_and_gnd_figure_list = []
     for i in range(len(horse_race_data_list_shr)):
-        base_time, gf = calcBaseTimeFigureAndGndFigure(race_data_list, horse_data_list, horse_race_data_list_shr[i][0], horse_race_data_list_shr[i][1], horse_race_data_list_shr[i][2], horse_race_data_list_shr[i][3], horse_race_data_list_shr[i][4])
+        base_time, gf = calcBaseTimeFigureAndGndFigure(logger, data_dir, race_data_list, horse_data_list, horse_race_data_list_shr[i][0], horse_race_data_list_shr[i][1], horse_race_data_list_shr[i][2], horse_race_data_list_shr[i][3], horse_race_data_list_shr[i][4])
         horse_base_time_and_gnd_figure_list.append([base_time, gf])
     rap_time = time.time() - start
-    print("rap_time:{0}[sec]".format(rap_time))
+    logger.log(20, "rap_time:{0}[sec]".format(rap_time))
 
 
     # スピード指数の計算
     horse_result = []
     for i in range(len(horse_name_list)):
         try:
-            print(horse_name_list[i])
-            print("")
+            logger.log(20, horse_name_list[i])
+            logger.log(20, "")
             # 出走馬の過去の戦績
             horse_race_data = horse_race_data_list[i]
             speed_figure_list = []
@@ -928,48 +924,48 @@ if __name__ == '__main__':
                             goal_time = float(gt[1]) + float(gt[0])*60
                         else:
                             goal_time = None
-                        print("goal_time = {}".format(goal_time))
+                        logger.log(20, "goal_time = {}".format(goal_time))
                         # ベースタイム算出
-                        print("base_time = {}".format(base_time))
+                        logger.log(20, "base_time = {}".format(base_time))
                         # 距離指数算出
                         df = calcDistanceFigure(base_time)
-                        print("df = {}".format(df))
+                        logger.log(20, "df = {}".format(df))
                         # 馬場指数算出
                         if gf == None:
 
                             continue
 
-                        print("gf = {}".format(gf))
+                        logger.log(20, "gf = {}".format(gf))
                         # スピード指数算出
                         speed_figure = (base_time*10 - goal_time*10) * df + gf + (burden_weight - 55) * 2 + 80
-                        print("speed_figure = {}".format(speed_figure))
+                        logger.log(20, "speed_figure = {}".format(speed_figure))
 
                         speed_figure_list.append(speed_figure)
 
                     except:
-                        print("can not find")
-                        print([place, distance, race_course_gnd, weather, ground_status])
+                        logger.log(20, "can not find")
+                        logger.log(20, [place, distance, race_course_gnd, weather, ground_status])
 
             ave_speed_figure = statistics.mean(speed_figure_list)
             std_speed_figure = statistics.pstdev(speed_figure_list)
-            print("[ave] speed_figure = {}".format(ave_speed_figure))
-            print("[std] speed_figure = {}".format(std_speed_figure))
+            logger.log(20, "[ave] speed_figure = {}".format(ave_speed_figure))
+            logger.log(20, "[std] speed_figure = {}".format(std_speed_figure))
 
             horse_result.append([horse_name_list[i], ave_speed_figure])
 
         except Exception as e:
-            print('=== エラー内容 ===')
-            print('type:' + str(type(e)))
-            print('args:' + str(e.args))
-            print(horse_result)
+            logger.log(20, '=== エラー内容 ===')
+            logger.log(20, 'type:' + str(type(e)))
+            logger.log(20, 'args:' + str(e.args))
+            logger.log(20, horse_result)
 
 
-    print("## org ##")
-    print(horse_result)
-    print("## sorted ##")
-    print(sorted(horse_result, reverse=True, key=lambda x: x[1]))
+    logger.log(20, "## org ##")
+    logger.log(20, horse_result)
+    logger.log(20, "## sorted ##")
+    logger.log(20, sorted(horse_result, reverse=True, key=lambda x: x[1]))
     rap_time = time.time() - start
-    print("rap_time:{0}[sec]".format(rap_time))
+    logger.log(20, "rap_time:{0}[sec]".format(rap_time))
     
 
     # ジョッキーの過去の戦績（重複なし）
@@ -986,31 +982,31 @@ if __name__ == '__main__':
                 goal_time = jockey_race_data_list[i][j][6]
                 jockey_race_data_list_shr.append([place, distance, race_course_gnd, weather, ground_status])
     jockey_race_data_list_shr = get_unique_list(jockey_race_data_list_shr)
-    print("len jockey_race_data_list_shr:{}".format(len(jockey_race_data_list_shr)))
+    logger.log(20, "len jockey_race_data_list_shr:{}".format(len(jockey_race_data_list_shr)))
     rap_time = time.time() - start
-    print("rap_time:{0}[sec]".format(rap_time))
+    logger.log(20, "rap_time:{0}[sec]".format(rap_time))
 
 
     # ジョッキーの過去の戦績（重複なし）に対する　ベースタイム　と　馬場指数
     jockey_base_time_and_gnd_figure_list = []
     for i in range(len(jockey_race_data_list_shr)):
-        base_time, gf = calcBaseTimeFigureAndGndFigure(race_data_list, horse_data_list, jockey_race_data_list_shr[i][0], jockey_race_data_list_shr[i][1], jockey_race_data_list_shr[i][2], jockey_race_data_list_shr[i][3], jockey_race_data_list_shr[i][4])
+        base_time, gf = calcBaseTimeFigureAndGndFigure(logger, data_dir, race_data_list, horse_data_list, jockey_race_data_list_shr[i][0], jockey_race_data_list_shr[i][1], jockey_race_data_list_shr[i][2], jockey_race_data_list_shr[i][3], jockey_race_data_list_shr[i][4])
         jockey_base_time_and_gnd_figure_list.append([base_time, gf])
     rap_time = time.time() - start
-    print("rap_time:{0}[sec]".format(rap_time))
+    logger.log(20, "rap_time:{0}[sec]".format(rap_time))
 
     # スピード指数の計算
     jockey_result = []
     for i in range(len(jockey_name_list)):
         try:
-            print(jockey_name_list[i])
-            print("")
+            logger.log(20, jockey_name_list[i])
+            logger.log(20, "")
             # 出走馬の過去の戦績
             jockey_race_data = jockey_race_data_list[i]
             speed_figure_list = []
             for j in range(len(jockey_race_data)):
                 place = jockey_race_data[j][0]
-                #print(place)
+                #logger.log(20, place)
                 if place in ["中山","阪神","東京","中京","札幌","函館","福島","新潟","京都","小倉"]: # 日本の中央競馬限定
                     weather = jockey_race_data[j][1]
                     burden_weight = jockey_race_data[j][2]
@@ -1032,48 +1028,48 @@ if __name__ == '__main__':
                             goal_time = float(gt[1]) + float(gt[0])*60
                         else:
                             goal_time = None
-                        #print("goal_time = {}".format(goal_time))
+                        #logger.log(20, "goal_time = {}".format(goal_time))
                         # ベースタイム算出
-                        #print("base_time = {}".format(base_time))
+                        #logger.log(20, "base_time = {}".format(base_time))
                         # 距離指数算出
                         df = calcDistanceFigure(base_time)
-                        #print("df = {}".format(df))
+                        #logger.log(20, "df = {}".format(df))
                         # 馬場指数算出
                         if gf == None:
 
                             continue
 
-                        #print("gf = {}".format(gf))
+                        #logger.log(20, "gf = {}".format(gf))
                         # スピード指数算出
                         speed_figure = (base_time*10 - goal_time*10) * df + gf + (burden_weight - 55) * 2 + 80
-                        #print("speed_figure = {}".format(speed_figure))
+                        #logger.log(20, "speed_figure = {}".format(speed_figure))
 
                         speed_figure_list.append(speed_figure)
 
                     except:
-                        print("can not find")
-                        print([place, distance, race_course_gnd, weather, ground_status])
+                        logger.log(20, "can not find")
+                        logger.log(20, [place, distance, race_course_gnd, weather, ground_status])
 
             ave_speed_figure = statistics.mean(speed_figure_list)
             std_speed_figure = statistics.pstdev(speed_figure_list)
-            print("[ave] speed_figure = {}".format(ave_speed_figure))
-            print("[std] speed_figure = {}".format(std_speed_figure))
+            logger.log(20, "[ave] speed_figure = {}".format(ave_speed_figure))
+            logger.log(20, "[std] speed_figure = {}".format(std_speed_figure))
 
             jockey_result.append([jockey_name_list[i], ave_speed_figure])
 
         except Exception as e:
-            print('=== エラー内容 ===')
-            print('type:' + str(type(e)))
-            print('args:' + str(e.args))
-            print('e自身:' + str(e))
-            print(jockey_result)
+            logger.log(20, '=== エラー内容 ===')
+            logger.log(20, 'type:' + str(type(e)))
+            logger.log(20, 'args:' + str(e.args))
+            logger.log(20, 'e自身:' + str(e))
+            logger.log(20, jockey_result)
 
-    print("## org ##")
-    print(jockey_result)
-    print("## sorted ##")
-    print(sorted(jockey_result, reverse=True, key=lambda x: x[1]))
+    logger.log(20, "## org ##")
+    logger.log(20, jockey_result)
+    logger.log(20, "## sorted ##")
+    logger.log(20, sorted(jockey_result, reverse=True, key=lambda x: x[1]))
     rap_time = time.time() - start
-    print("rap_time:{0}[sec]".format(rap_time))
+    logger.log(20, "rap_time:{0}[sec]".format(rap_time))
 
 
     # 出走馬の血統馬と出走馬、ジョッキーのスピード指数から総合的にスピード指数を計算してソートして表示
@@ -1083,5 +1079,54 @@ if __name__ == '__main__':
         total_result.append([(horse_blood_result + jockey_result[i][1]) / 2, horse_result[i][0], jockey_result[i][0]])
     total_result_ = sorted(total_result, reverse=True, key=lambda x: x[0])
     for i in range(len(total_result_)):
-        print(total_result_[i])
+        logger.log(20, total_result_[i])
 
+    # github投稿用順位表
+    print("1st : {}&{}({:.2f})".format(total_result_[0][1], total_result_[0][2], total_result_[0][0]))
+    print("2nd : {}&{}({:.2f})".format(total_result_[1][1], total_result_[1][2], total_result_[1][0]))
+    print("3rd : {}&{}({:.2f})".format(total_result_[2][1], total_result_[2][2], total_result_[2][0]))
+    print("4th : {}&{}({:.2f})".format(total_result_[3][1], total_result_[3][2], total_result_[3][0]))
+
+
+
+def init_logger(path, name):
+    # ログの出力名を設定（1）
+    logger = logging.getLogger(name)
+    # ログレベルの設定（2）
+    logger.setLevel(10)
+    # ログのコンソール出力の設定（3）
+    sh = logging.StreamHandler()
+    logger.addHandler(sh)
+    # ログのファイル出力先を設定（4）
+    fh = logging.FileHandler(path + "/" + name + ".log")
+    logger.addHandler(fh)
+    # ログの出力形式の設定
+    formatter = logging.Formatter('%(asctime)s:%(message)s')
+    fh.setFormatter(formatter)
+    sh.setFormatter(formatter)
+
+    return logger
+
+
+
+
+if __name__ == '__main__':
+
+
+    race_url_list = [
+        "https://race.netkeiba.com/race/shutuba.html?race_id=202105030606&rf=race_submenu",
+    ]
+    #sql_dir = "../data/all_sq"
+    data_dir = "../data"
+    result_dir = "../../result"
+
+    for race_url in race_url_list:
+        # ロガーの初期化
+        log_name = "[pred]" + race_url.split("?")[-1].split("&")[0]
+        logger = init_logger(result_dir + "/log", log_name)
+
+        logger.log(20, "XXXXXXXXXXXXXXXXXXX")
+        logger.log(20, log_name)
+        logger.log(20, "XXXXXXXXXXXXXXXXXXX")
+
+        calcSpeedFigure(logger, race_url, data_dir)
