@@ -189,6 +189,8 @@ def scrJockeyRaceData(logger, race_url, race_smp_num, jockey_url_list, jockey_na
                 logger.log(20, "{} {}".format(cnt, [place, weather, burden_weight, race_course_gnd, distance, ground_status, goal_time]))
                 cnt += 1
 
+                if cnt > race_smp_num:
+                    break
 
             tmp0_jockey_race_data_list += tmp1_jockey_race_data_list
 
@@ -347,7 +349,7 @@ def calcBaseTimeFigureAndGndFigure(logger, data_dir, race_data_list, horse_data_
 
 
     # データベースに計算結果を保存
-    updateDatabeseBaseTimeFigureAndGndFigure(logger, place, distance, race_course_gnd, weather, ground_status, base_time, gnd_figure)
+    updateDatabeseBaseTimeFigureAndGndFigure(logger, data_dir, place, distance, race_course_gnd, weather, ground_status, base_time, gnd_figure)
 
 
     return base_time, gnd_figure   # 指数として出力するため10かけている
@@ -515,7 +517,7 @@ def calcSpeedFigure(logger, scr_name_list, scr_race_data_list, scr_race_data_lis
 
 
 
-def genJockeySpeedFigureAndDistanceFig(result_dir, jockey_name_list, jockey_result_list):
+def genJockeySpeedFigureAndDistanceFig(result_dir, race_smp_num, jockey_name_list, jockey_result_list):
 
     for i in range(len(jockey_name_list)):
         jockey_result_speed_figure = jockey_result_list[i][0]
@@ -525,7 +527,8 @@ def genJockeySpeedFigureAndDistanceFig(result_dir, jockey_name_list, jockey_resu
         plt.scatter(jockey_result_distance, jockey_result_speed_figure)
         plt.xlabel('Distance')
         plt.ylabel('Speed Figure')
-        plt.xlim(1000,3600)
+        plt.title('race_smp_num={}'.format(len(jockey_result_speed_figure)),loc='left',fontsize=20)
+        plt.xlim(900,3600)
         plt.ylim(0.0,150)
         #plt.grid(True)
         plt.savefig(result_dir + "/image/eda_distance_and_speed_figure" + '/Speed_Figure_Distance_{}.png'.format(jockey_name_list[i]))
@@ -573,7 +576,7 @@ def calcJockeySpeedFigure(logger, race_url, data_dir, result_dir, race_smp_num):
     logger.log(20, "rap_time:{0}[sec]".format(rap_time))
 
     # グラフの描画
-    genJockeySpeedFigureAndDistanceFig(result_dir, jockey_name_list, jockey_result_list)
+    genJockeySpeedFigureAndDistanceFig(result_dir, race_smp_num, jockey_name_list, jockey_result_list)
 
 
 
