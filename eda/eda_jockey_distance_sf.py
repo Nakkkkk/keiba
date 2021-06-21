@@ -125,6 +125,57 @@ def scrHorseAndJockeyRaceNameAndUrl(logger, race_url):
 
 
 
+
+def scrJockeyRaceDataFromSQL(logger, data_dir, race_url, race_smp_num, jockey_url_list, jockey_name_list):
+    options = Options()
+    options.add_argument('--headless')    # ヘッドレスモードに
+    driver = webdriver.Chrome(chrome_options=options) 
+    wait = WebDriverWait(driver,5)
+
+    dbname_h = '/all_sq/Horse.db'
+    conn_h = sqlite3.connect(data_dir + dbname_h)
+    conn_h.row_factory = sqlite3.Row
+    cur_h = conn_h.cursor()
+
+    dbname_r = '/all_sq/Race.db'
+    conn_r = sqlite3.connect(data_dir + dbname_r)
+    conn_r.row_factory = sqlite3.Row
+    cur_r = conn_r.cursor()
+
+    # ジョッキーのレース成績をリストに保存（直近200試合を参照）
+    jockey_race_data_list = []
+    for r_row in range(len(jockey_name_list)):
+        logger.log(20, jockey_name_list[r_row])
+        #driver.get(jockey_url_list[r_row])
+        jockey_id = jockey_url_list[r_row].split("/")[-2]
+
+        cur_h.execute('SELECT * FROM horse WHERE rider_id = "{}" order by race_id desc'.format(jockey_id))
+        
+        #tmp0_jockey_race_data_list = cur_h.fetchall()
+        tmp0_jockey_race_data_list = []
+        cnt = 0
+        for row_h in cur_h.fetchall():
+            dict_row_h = dict(row_h)
+            cur_r.execute('SELECT * FROM race WHERE race_id = {}'.format(dict_row_h["race_id"]))
+            for row_r in cur_r.fetchall():
+                dict_row_r = dict(row_r)
+                place = dict_row_r["where_racecourse"].split("回")[1][:2]
+                tmp0_jockey_race_data_list.append([place, dict_row_r["weather"], dict_row_h["burden_weight"], dict_row_r["race_course_gnd"], dict_row_r["race_course_m"], dict_row_r["ground_status"], dict_row_h["goal_time"]])
+                logger.log(20, "{} {}".format(cnt, [place, dict_row_r["weather"], dict_row_h["burden_weight"], dict_row_r["race_course_gnd"], dict_row_r["race_course_m"], dict_row_r["ground_status"], dict_row_h["goal_time"]]))
+                cnt += 1
+
+            if cnt > race_smp_num:
+                break
+
+        jockey_race_data_list.append(tmp0_jockey_race_data_list)
+
+
+    return jockey_race_data_list
+
+
+
+
+
 def scrJockeyRaceData(logger, race_url, race_smp_num, jockey_url_list, jockey_name_list):
     options = Options()
     options.add_argument('--headless')    # ヘッドレスモードに
@@ -459,6 +510,7 @@ def calcSpeedFigure(logger, scr_name_list, scr_race_data_list, scr_race_data_lis
                     gf = tmp[1]
 
                     # ゴールタイム表記変換
+                    """
                     gt = goal_time.split(":")
                     if len(gt) == 1:
                         goal_time = float(gt[0])
@@ -466,6 +518,7 @@ def calcSpeedFigure(logger, scr_name_list, scr_race_data_list, scr_race_data_lis
                         goal_time = float(gt[1]) + float(gt[0])*60
                     else:
                         goal_time = None
+                    """
                     #logger.log(20, "goal_time = {}".format(goal_time))
                     # ベースタイム算出
                     #logger.log(20, "base_time = {}".format(base_time))
@@ -561,10 +614,15 @@ def calcJockeySpeedFigure(logger, race_url, data_dir, result_dir, race_smp_num):
     logger.log(20, "rap_time:{0}[sec]".format(rap_time))
     
     # ジョッキーのレース成績をスクレイピング
-    jockey_race_data_list = scrJockeyRaceData(logger, race_url, race_smp_num, jockey_url_list, jockey_name_list)
+    #jockey_race_data_list = scrJockeyRaceData(logger, race_url, race_smp_num, jockey_url_list, jockey_name_list)
+    #rap_time = time.time() - start
+    #logger.log(20, "rap_time:{0}[sec]".format(rap_time))
+
+    # ジョッキーのレース成績をSQLから取得
+    jockey_race_data_list = scrJockeyRaceDataFromSQL(logger, data_dir, race_url, race_smp_num, jockey_url_list, jockey_name_list)
     rap_time = time.time() - start
     logger.log(20, "rap_time:{0}[sec]".format(rap_time))
-    
+
     # ジョッキーのベースタイムと馬場指数を算出
     jockey_base_time_and_gnd_figure_list, jockey_race_data_list_shr = calcBaseTimeFigureAndGndFigureWithoutDup(logger, data_dir, race_data_list, horse_data_list, jockey_race_data_list)
     rap_time = time.time() - start

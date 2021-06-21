@@ -1118,7 +1118,7 @@ if __name__ == '__main__':
     ]
     #sql_dir = "../data/all_sq"
     data_dir = "../data"
-    result_dir = "../../result"
+    result_dir = "../result"
 
     for race_url in race_url_list:
         # ロガーの初期化
