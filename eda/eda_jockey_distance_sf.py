@@ -23,6 +23,8 @@ from multiprocessing.dummy import Pool
 import sqlite3
 import logging
 import sys
+import matplotlib.cm as cm
+
 
 
 
@@ -160,8 +162,8 @@ def scrJockeyRaceDataFromSQL(logger, data_dir, race_url, race_smp_num, jockey_ur
             for row_r in cur_r.fetchall():
                 dict_row_r = dict(row_r)
                 place = dict_row_r["where_racecourse"].split("回")[1][:2]
-                tmp0_jockey_race_data_list.append([place, dict_row_r["weather"], dict_row_h["burden_weight"], dict_row_r["race_course_gnd"], dict_row_r["race_course_m"], dict_row_r["ground_status"], dict_row_h["goal_time"]])
-                logger.log(20, "{} {}".format(cnt, [place, dict_row_r["weather"], dict_row_h["burden_weight"], dict_row_r["race_course_gnd"], dict_row_r["race_course_m"], dict_row_r["ground_status"], dict_row_h["goal_time"]]))
+                tmp0_jockey_race_data_list.append([place, dict_row_r["weather"], dict_row_h["burden_weight"], dict_row_r["race_course_gnd"], dict_row_r["race_course_m"], dict_row_r["ground_status"], dict_row_h["goal_time"], dict_row_h["rank"]])
+                logger.log(20, "{} {}".format(cnt, [place, dict_row_r["weather"], dict_row_h["burden_weight"], dict_row_r["race_course_gnd"], dict_row_r["race_course_m"], dict_row_r["ground_status"], dict_row_h["goal_time"], dict_row_h["rank"]]))
                 cnt += 1
 
             if cnt > race_smp_num:
@@ -571,7 +573,6 @@ def calcSpeedFigure(logger, scr_name_list, scr_race_data_list, scr_race_data_lis
 
 
 def genJockeySpeedFigureAndDistanceFig(result_dir, race_smp_num, jockey_name_list, jockey_result_list):
-
     for i in range(len(jockey_name_list)):
         jockey_result_speed_figure = jockey_result_list[i][0]
         jockey_result_distance = jockey_result_list[i][1]
@@ -585,6 +586,44 @@ def genJockeySpeedFigureAndDistanceFig(result_dir, race_smp_num, jockey_name_lis
         plt.ylim(0.0,150)
         #plt.grid(True)
         plt.savefig(result_dir + "/image/eda_distance_and_speed_figure" + '/Speed_Figure_Distance_{}.png'.format(jockey_name_list[i]))
+        plt.close()
+
+
+
+
+def draw_heatmap(x, y):
+    heatmap, xedges, yedges = np.histogram2d(x, y, bins=50)
+    extent = [xedges[0], xedges[-1], yedges[0], yedges[-1]]
+
+    plt.figure()
+    plt.imshow(heatmap, extent=extent)
+
+
+
+def genJockeyRankAndDistanceFig(result_dir, race_smp_num, jockey_name_list, jockey_race_data_list):
+    for i in range(len(jockey_race_data_list)):
+        jockey_result_rank = []
+        jockey_result_distance = []
+        for j in range(len(jockey_race_data_list[i])):
+            if type(jockey_race_data_list[i][j][-1]) == int and type(jockey_race_data_list[i][j][-4] == int):
+                jockey_result_rank.append(jockey_race_data_list[i][j][-1])
+                jockey_result_distance.append(jockey_race_data_list[i][j][-4])
+
+        plt.clf()
+
+        H = plt.hist2d(jockey_result_distance, jockey_result_rank, bins=40, cmap=cm.jet)
+        plt.colorbar(H[3])
+
+
+        #plt.scatter(jockey_result_distance, jockey_result_rank)
+        #draw_heatmap(jockey_result_distance, jockey_result_rank)
+        plt.xlabel('Distance')
+        plt.ylabel('Speed Figure')
+        plt.title('race_smp_num={}'.format(len(jockey_result_rank)),loc='left',fontsize=20)
+        plt.xlim(900,3600)
+        plt.ylim(20,0)
+        #plt.grid(True)
+        plt.savefig(result_dir + "/image/eda_distance_and_rank" + '/Rank_Distance_{}.png'.format(jockey_name_list[i]))
         plt.close()
 
 
@@ -623,6 +662,7 @@ def calcJockeySpeedFigure(logger, race_url, data_dir, result_dir, race_smp_num):
     rap_time = time.time() - start
     logger.log(20, "rap_time:{0}[sec]".format(rap_time))
 
+    """
     # ジョッキーのベースタイムと馬場指数を算出
     jockey_base_time_and_gnd_figure_list, jockey_race_data_list_shr = calcBaseTimeFigureAndGndFigureWithoutDup(logger, data_dir, race_data_list, horse_data_list, jockey_race_data_list)
     rap_time = time.time() - start
@@ -633,8 +673,12 @@ def calcJockeySpeedFigure(logger, race_url, data_dir, result_dir, race_smp_num):
     rap_time = time.time() - start
     logger.log(20, "rap_time:{0}[sec]".format(rap_time))
 
-    # グラフの描画
+    # スピード指数対距離のグラフ描画
     genJockeySpeedFigureAndDistanceFig(result_dir, race_smp_num, jockey_name_list, jockey_result_list)
+    """
+
+    # 着順対距離のグラフ描画
+    genJockeyRankAndDistanceFig(result_dir, race_smp_num, jockey_name_list, jockey_race_data_list)
 
 
 

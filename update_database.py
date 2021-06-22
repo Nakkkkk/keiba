@@ -9,7 +9,7 @@ from bs4 import BeautifulSoup
 import os
 from natsort import natsorted
 import glob
-import seaborn as sns
+#import seaborn as sns
 import matplotlib.pyplot as plt
 import statistics
 import time
