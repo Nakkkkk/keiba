@@ -762,13 +762,13 @@ def calcJockeySpeedFigure(logger, race_url, data_dir, result_dir, race_smp_num):
     """
 
     # 着順対距離のグラフ描画
-    #genJockeyRankAndDistanceFig(result_dir, race_smp_num, jockey_name_list, jockey_race_data_list)
+    genJockeyRankAndDistanceFig(result_dir, race_smp_num, jockey_name_list, jockey_race_data_list)
 
     # 着順対距離のグラフ描画
     #genJockeyFrameNumberAndRankFig(result_dir, race_smp_num, jockey_name_list, jockey_race_data_list)
 
     # 着順対距離のグラフ描画
-    genJockeyFrameNumberAndRankFigAndDistance(result_dir, race_smp_num, jockey_name_list, jockey_race_data_list)
+    #genJockeyFrameNumberAndRankFigAndDistance(result_dir, race_smp_num, jockey_name_list, jockey_race_data_list)
 
 
 

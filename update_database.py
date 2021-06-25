@@ -349,7 +349,7 @@ def updateDatabeseHorse(
 def makeHorseAndRaceDatabaseUpdateList(sql_dir):
     # 今日の日付
     dt_now = datetime.datetime.now()
-    dt_now_strf = dt_now.strftime('%Y-%m-%d-%H:%M:%S')
+    dt_now_strf = dt_now.strftime('%Y-%m-%d-%H-%M-%S')
 
 
     # sqlデータの読み込み
