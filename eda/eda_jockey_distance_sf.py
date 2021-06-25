@@ -25,6 +25,7 @@ import logging
 import sys
 import matplotlib.cm as cm
 from mpl_toolkits.mplot3d import Axes3D
+import random
 
 
 
@@ -128,6 +129,17 @@ def scrHorseAndJockeyRaceNameAndUrl(logger, race_url):
 
 
 
+def rand_ints_nodup(a, b, k):
+    ns = []
+    while len(ns) < k:
+        n = random.randint(a, b)
+        if not n in ns:
+            ns.append(n)
+    return ns
+
+
+
+
 def scrJockeyRaceDataFromSQL(logger, data_dir, race_url, race_smp_num, jockey_url_list, jockey_name_list):
     options = Options()
     options.add_argument('--headless')    # ヘッドレスモードに
@@ -156,7 +168,18 @@ def scrJockeyRaceDataFromSQL(logger, data_dir, race_url, race_smp_num, jockey_ur
         #tmp0_jockey_race_data_list = cur_h.fetchall()
         tmp0_jockey_race_data_list = []
         cnt = 0
-        for row_h in cur_h.fetchall():
+        cur_h_fetchall = cur_h.fetchall()
+        logger.log(20, "len cur_h.fetchall() = {}".format(len(cur_h_fetchall)))
+
+        # データからrace_smp_num個無作為抽出
+        if race_smp_num <= len(cur_h_fetchall):
+            race_random_num_list = rand_ints_nodup(0, len(cur_h_fetchall) - 1, race_smp_num) 
+        else:
+            race_random_num_list = list(range(len(cur_h_fetchall)))
+            random.shuffle(race_random_num_list)
+
+        for rnd_idx in race_random_num_list:
+            row_h = cur_h_fetchall[rnd_idx]
             dict_row_h = dict(row_h)
             cur_r.execute('SELECT * FROM race WHERE race_id = {}'.format(dict_row_h["race_id"]))
             for row_r in cur_r.fetchall():
@@ -604,7 +627,7 @@ def genJockeyRankAndDistanceFig(result_dir, race_smp_num, jockey_name_list, jock
 
         plt.clf()
 
-        H = plt.hist2d(jockey_result_distance, jockey_result_rank, bins=40, cmap=cm.jet)
+        H = plt.hist2d(jockey_result_distance, jockey_result_rank, bins=[np.linspace(900,3600,28),np.linspace(0,20,21)], cmap=cm.jet)
         plt.colorbar(H[3])
 
 
@@ -612,7 +635,7 @@ def genJockeyRankAndDistanceFig(result_dir, race_smp_num, jockey_name_list, jock
         plt.xlabel('Distance')
         plt.ylabel('Rank')
         plt.title('race_smp_num={}'.format(len(jockey_result_rank)),loc='left',fontsize=20)
-        plt.xlim(900,3600)
+        #plt.xlim(900,3600)
         plt.ylim(20,0)
         #plt.grid(True)
         plt.savefig(result_dir + "/image/eda_distance_and_rank" + '/Rank_Distance_{}.png'.format(jockey_name_list[i]))
@@ -635,7 +658,7 @@ def genJockeyFrameNumberAndRankFig(result_dir, race_smp_num, jockey_name_list, j
 
         plt.clf()
 
-        H = plt.hist2d(jockey_result_frame_number, jockey_result_rank, bins=40, cmap=cm.jet)
+        H = plt.hist2d(jockey_result_frame_number, jockey_result_rank, bins=[np.linspace(0,10,11),np.linspace(0,20,21)], cmap=cm.jet)
         plt.colorbar(H[3])
 
 
@@ -643,7 +666,7 @@ def genJockeyFrameNumberAndRankFig(result_dir, race_smp_num, jockey_name_list, j
         plt.xlabel('Frame Number')
         plt.ylabel('Rank')
         plt.title('race_smp_num={}'.format(len(jockey_result_rank)),loc='left',fontsize=20)
-        plt.xlim(0,10)
+        #plt.xlim(0,10)
         plt.ylim(20,0)
         #plt.grid(True)
         plt.savefig(result_dir + "/image/eda_distance_and_frame_number" + '/Rank_Frame_Number_{}.png'.format(jockey_name_list[i]))
@@ -674,12 +697,13 @@ def genJockeyFrameNumberAndRankFigAndDistance(result_dir, race_smp_num, jockey_n
                         jockey_result_distance.append(jockey_race_data_list[i][j]["race_course_m"])
 
             plt.clf()
-            H = plt.hist2d(jockey_result_frame_number, jockey_result_rank, bins=40, cmap=cm.jet)
+            H = plt.hist2d(jockey_result_frame_number, jockey_result_rank, bins=[np.linspace(0,10,11),np.linspace(0,20,21)], cmap=cm.jet)
+            H[3].set_clim(0,15)
             plt.colorbar(H[3])
             plt.xlabel('Frame Number')
             plt.ylabel('Rank')
             plt.title('race_smp_num={}, distance={}-{}'.format(len(jockey_result_rank), dis_range[k], dis_range[k+1] - 1),loc='left',fontsize=15)
-            plt.xlim(0,10)
+            #plt.xlim(0,10)
             plt.ylim(20,0)
             plt.savefig(result_dir + "/image/eda_distance_and_frame_number_distance" + jockey_folder + '/Rank_Frame_Number_{}_{}-{}.png'.format(jockey_name_list[i], dis_range[k], dis_range[k+1] - 1))
             plt.close()
