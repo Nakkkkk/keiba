@@ -115,6 +115,42 @@ def updateDatabeseBloodFather(logger, data_dir, horse_id_foal, horse_id_father):
 
 
 
+def scrRaceData(logger, data_dir, race_url):
+    options = Options()
+    options.add_argument('--headless')    # ヘッドレスモードに
+    driver = webdriver.Chrome(chrome_options=options) 
+    wait = WebDriverWait(driver,5)
+
+    driver.get(race_url) # 速度ボトルネック
+    time.sleep(1)
+    wait.until(EC.presence_of_all_elements_located)
+
+    # 開催レース情報の取得
+    racedata01_rows = driver.find_element_by_class_name('RaceData01').find_elements_by_tag_name("span")
+    distance = int(racedata01_rows[0].text[-5:-1])
+    race_course_gnd = ""
+    if "芝" in racedata01_rows[0].text[0]:
+        race_course_gnd = "T"
+    elif "ダ" in racedata01_rows[0].text[0]:
+        race_course_gnd = "D"
+    if "障" in racedata01_rows[0].text[0]:
+        race_course_gnd = "O"
+    racedata02_rows = driver.find_element_by_class_name('RaceData02').find_elements_by_tag_name("span")
+    place = racedata02_rows[1].text
+
+    all_race_rows = driver.find_element_by_class_name('Shutuba_Table').find_elements_by_tag_name("tr")
+    frame_number_list = []
+    for r_row in range(2,len(all_race_rows)):
+        #for r_row in range(2 + 4,2+5):
+        frame_number_list.append(int(all_race_rows[r_row].find_elements_by_tag_name("td")[0].find_element_by_tag_name("span").text))
+
+
+
+    return distance, race_course_gnd, place, frame_number_list
+
+
+
+
 def scrHorseAndJockeyRaceNameAndUrl(logger, race_url):
     options = Options()
     options.add_argument('--headless')    # ヘッドレスモードに
@@ -1202,6 +1238,7 @@ def genTamerFrameNumberAndRankFigAndDistance(result_dir, race_smp_num, tamer_nam
 
 
 
+
 def genBloodRankAndDistanceFig(result_dir, race_smp_num, horse_name_list, blood_race_data_list):
     blood_folder = "/eda_distance_and_rank"
     blood_path = result_dir + "/image/blood" + blood_folder
@@ -1235,6 +1272,79 @@ def genBloodRankAndDistanceFig(result_dir, race_smp_num, horse_name_list, blood_
 
 
 
+def genBloodFrameNumberAndRankFig(result_dir, race_smp_num, blood_name_list, blood_race_data_list):
+    blood_folder = "/eda_distance_and_frame_number"
+    blood_path = result_dir + "/image/blood" + blood_folder
+    if not os.path.exists(blood_path):
+        os.mkdir(blood_path)
+
+    for i in range(len(blood_race_data_list)):
+        blood_result_rank = []
+        blood_result_frame_number = []
+        blood_result_distance = []
+        for j in range(len(blood_race_data_list[i])):
+            if type(blood_race_data_list[i][j]["rank"]) == int and type(blood_race_data_list[i][j]["frame_number"] == int):
+                blood_result_rank.append(blood_race_data_list[i][j]["rank"])
+                blood_result_frame_number.append(blood_race_data_list[i][j]["frame_number"])
+                blood_result_distance.append(blood_race_data_list[i][j]["race_course_m"])
+
+        plt.clf()
+
+        H = plt.hist2d(blood_result_frame_number, blood_result_rank, bins=[np.linspace(0,10,11),np.linspace(0,20,21)], cmap=cm.jet)
+        plt.colorbar(H[3])
+
+
+        #plt.scatter(blood_result_frame_number, blood_result_rank)
+        plt.xlabel('Frame Number')
+        plt.ylabel('Rank')
+        plt.title('race_smp_num={}'.format(len(blood_result_rank)),loc='left',fontsize=20)
+        #plt.xlim(0,10)
+        plt.ylim(20,0)
+        #plt.grid(True)
+        plt.savefig(result_dir + "/image/blood/eda_distance_and_frame_number" + '/Rank_Frame_Number_{}.png'.format(blood_name_list[i]))
+        plt.close()
+
+
+
+
+def genBloodFrameNumberAndRankFigAndDistance(result_dir, race_smp_num, blood_name_list, blood_race_data_list):
+    blood_folder = "/eda_distance_and_frame_number_distance"
+    blood_path = result_dir + "/image/blood" + blood_folder
+    if not os.path.exists(blood_path):
+        os.mkdir(blood_path)
+
+    dis_range = [1000, 1400, 1800, 2200, 2600, 3000, 3400]
+    for k in range(len(dis_range) - 1):
+        for i in range(len(blood_race_data_list)):
+            blood_folder = "/" + blood_name_list[i]
+            blood_path = result_dir + "/image/blood/eda_distance_and_frame_number_distance" + blood_folder
+            if not os.path.exists(blood_path):
+                os.mkdir(blood_path)
+            blood_result_rank = []
+            blood_result_frame_number = []
+            blood_result_distance = []
+            for j in range(len(blood_race_data_list[i])):
+                if type(blood_race_data_list[i][j]["rank"]) == int and \
+                    type(blood_race_data_list[i][j]["frame_number"] == int) and \
+                    type(blood_race_data_list[i][j]["race_course_m"] == int):
+                    if dis_range[k] < blood_race_data_list[i][j]["race_course_m"] and blood_race_data_list[i][j]["race_course_m"] < dis_range[k+1] - 1:
+                        blood_result_rank.append(blood_race_data_list[i][j]["rank"])
+                        blood_result_frame_number.append(blood_race_data_list[i][j]["frame_number"])
+                        blood_result_distance.append(blood_race_data_list[i][j]["race_course_m"])
+
+            plt.clf()
+            H = plt.hist2d(blood_result_frame_number, blood_result_rank, bins=[np.linspace(0,10,11),np.linspace(0,20,21)], cmap=cm.jet)
+            plt.colorbar(H[3])
+            plt.xlabel('Frame Number')
+            plt.ylabel('Rank')
+            plt.title('race_smp_num={}, distance={}-{}'.format(len(blood_result_rank), dis_range[k], dis_range[k+1] - 1),loc='left',fontsize=15)
+            #plt.xlim(0,10)
+            plt.ylim(20,0)
+            plt.savefig(result_dir + "/image/blood/eda_distance_and_frame_number_distance" + blood_folder + '/Rank_Frame_Number_{}_{}-{}.png'.format(blood_name_list[i], dis_range[k], dis_range[k+1] - 1))
+            plt.close()
+
+
+
 
 def get_unique_list(seq):
     seen = []
@@ -1253,6 +1363,14 @@ def calcJockeySpeedFigure(logger, race_url, data_dir, result_dir, race_smp_num):
     rap_time = time.time() - start
     logger.log(20, "rap_time:{0}[sec]".format(rap_time))
 
+    # 開催レース基本情報のスクレイピング
+    distance, race_course_gnd, place, frame_number_list = scrRaceData(logger, data_dir, race_url)
+    logger.log(20, "race distance = {}".format(distance))
+    logger.log(20, "race race_course_gnd = {}".format(race_course_gnd))
+    logger.log(20, "race place = {}".format(place))
+    logger.log(20, "frame_number_list = {}".format(frame_number_list))
+    rap_time = time.time() - start
+    logger.log(20, "rap_time:{0}[sec]".format(rap_time))
     
     # 出走馬のURLと名前をスクレイピング
     horse_url_list, horse_name_list = scrHorseRaceNameAndUrl(logger, race_url)
@@ -1270,8 +1388,6 @@ def calcJockeySpeedFigure(logger, race_url, data_dir, result_dir, race_smp_num):
     """
 
 
-    """
-
     # ジョッキーのURLと名前をスクレイピング
     jockey_url_list, jockey_name_list = scrJockeyRaceNameAndUrl(logger, race_url)
     rap_time = time.time() - start
@@ -1281,9 +1397,7 @@ def calcJockeySpeedFigure(logger, race_url, data_dir, result_dir, race_smp_num):
     tamer_url_list, tamer_name_list = scrTamerRaceNameAndUrl(logger, race_url)
     rap_time = time.time() - start
     logger.log(20, "rap_time:{0}[sec]".format(rap_time))
-    """
 
-    """
     # ジョッキーのレース成績をSQLから取得
     jockey_race_data_list = scrJockeyRaceDataFromSQL(logger, data_dir, race_url, race_smp_num, jockey_url_list, jockey_name_list)
     rap_time = time.time() - start
@@ -1293,7 +1407,6 @@ def calcJockeySpeedFigure(logger, race_url, data_dir, result_dir, race_smp_num):
     tamer_race_data_list = scrTamerRaceDataFromSQL(logger, data_dir, race_url, race_smp_num, tamer_url_list, tamer_name_list)
     rap_time = time.time() - start
     logger.log(20, "rap_time:{0}[sec]".format(rap_time))
-    """
 
     # 出走馬の血統情報をデータベース書き込み
     scrHorseBloodline(logger, race_url, data_dir)
@@ -1304,7 +1417,6 @@ def calcJockeySpeedFigure(logger, race_url, data_dir, result_dir, race_smp_num):
     blood_race_data_list = scrBloodRaceDataFromSQL(logger, data_dir, race_url, race_smp_num, horse_url_list, horse_name_list)
     rap_time = time.time() - start
     logger.log(20, "rap_time:{0}[sec]".format(rap_time))
-
 
     """
     # ジョッキーのベースタイムと馬場指数を算出
@@ -1320,41 +1432,39 @@ def calcJockeySpeedFigure(logger, race_url, data_dir, result_dir, race_smp_num):
     # スピード指数対距離のグラフ描画
     genJockeySpeedFigureAndDistanceFig(result_dir, race_smp_num, jockey_name_list, jockey_result_list)
     """
+    # 着順対距離のグラフ描画（ジョッキー）
+    genJockeyRankAndDistanceFig(result_dir, race_smp_num, jockey_name_list, jockey_race_data_list)
 
     # 着順対距離のグラフ描画（ジョッキー）
-    #genJockeyRankAndDistanceFig(result_dir, race_smp_num, jockey_name_list, jockey_race_data_list)
+    genJockeyFrameNumberAndRankFig(result_dir, race_smp_num, jockey_name_list, jockey_race_data_list)
 
     # 着順対距離のグラフ描画（ジョッキー）
-    #genJockeyFrameNumberAndRankFig(result_dir, race_smp_num, jockey_name_list, jockey_race_data_list)
-
-    # 着順対距離のグラフ描画（ジョッキー）
-    #genJockeyFrameNumberAndRankFigAndDistance(result_dir, race_smp_num, jockey_name_list, jockey_race_data_list)
+    genJockeyFrameNumberAndRankFigAndDistance(result_dir, race_smp_num, jockey_name_list, jockey_race_data_list)
 
     # 着順対距離のグラフ描画（調教師）
-    #genTamerRankAndDistanceFig(result_dir, race_smp_num, tamer_name_list, tamer_race_data_list)
+    genTamerRankAndDistanceFig(result_dir, race_smp_num, tamer_name_list, tamer_race_data_list)
 
     # 着順対距離のグラフ描画（調教師）
-    #genTamerFrameNumberAndRankFig(result_dir, race_smp_num, tamer_name_list, tamer_race_data_list)
+    genTamerFrameNumberAndRankFig(result_dir, race_smp_num, tamer_name_list, tamer_race_data_list)
 
     # 着順対距離のグラフ描画（調教師）
-    #genTamerFrameNumberAndRankFigAndDistance(result_dir, race_smp_num, tamer_name_list, tamer_race_data_list)
+    genTamerFrameNumberAndRankFigAndDistance(result_dir, race_smp_num, tamer_name_list, tamer_race_data_list)
 
     # 着順対距離のグラフ描画（出走馬の血統馬）
     genBloodRankAndDistanceFig(result_dir, race_smp_num, horse_name_list, blood_race_data_list)
 
     # 着順対距離のグラフ描画（出走馬の血統馬）
-    #genTamerFrameNumberAndRankFig(result_dir, race_smp_num, horse_name_list, blood_race_data_list)
+    genBloodFrameNumberAndRankFig(result_dir, race_smp_num, horse_name_list, blood_race_data_list)
 
     # 着順対距離のグラフ描画（出走馬の血統馬）
-    #genTamerFrameNumberAndRankFigAndDistance(result_dir, race_smp_num, horse_name_list, blood_race_data_list)
-
+    genBloodFrameNumberAndRankFigAndDistance(result_dir, race_smp_num, horse_name_list, blood_race_data_list)
 
 
 if __name__ == "__main__":
 
     # 開催レースのURL
     race_url_list = [
-        "https://race.netkeiba.com/race/shutuba.html?race_id=202105030606&rf=race_submenu"
+        "https://race.netkeiba.com/race/shutuba.html?race_id=202109030411&rf=race_list"
     ]
     data_dir = "../../data"
     result_dir = "../../result"
