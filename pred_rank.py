@@ -89,10 +89,6 @@ def readRaceSqlDatabase(data_dir):
 
 
 
-
-
-
-
 def updateDatabeseBloodFather(logger, data_dir, horse_id_foal, horse_id_father):
     dbname = '/all_sq/BloodFather.db'
     conn = sqlite3.connect(data_dir + dbname)
@@ -433,7 +429,7 @@ def scrHorseBloodline(logger, race_url, data_dir):
 
 
 
-def scrBloodRaceDataFromSQL(logger, data_dir, race_url, race_smp_num, horse_url_list, horse_name_list):
+def scrBloodRaceDataFromSQL(logger, data_dir, race_url, foal_smp_num, horse_url_list, horse_name_list):
     options = Options()
     options.add_argument('--headless')    # ヘッドレスモードに
     driver = webdriver.Chrome(chrome_options=options) 
@@ -505,9 +501,9 @@ def scrBloodRaceDataFromSQL(logger, data_dir, race_url, race_smp_num, horse_url_
             cur_bf.execute('SELECT * FROM blood_father WHERE horse_id_father = "{}"'.format(father_id))
             foal_id_list = cur_bf.fetchall()
 
-            # データから50個無作為抽出
-            if 50 <= len(foal_id_list):
-                foal_id_list_idx_random_list = rand_ints_nodup(0, len(foal_id_list) - 1, 50) 
+            # データからfoal_smp_num個無作為抽出
+            if foal_smp_num <= len(foal_id_list):
+                foal_id_list_idx_random_list = rand_ints_nodup(0, len(foal_id_list) - 1, foal_smp_num) 
             else:
                 foal_id_list_idx_random_list = list(range(len(foal_id_list)))
                 random.shuffle(foal_id_list_idx_random_list)
@@ -541,6 +537,42 @@ def scrBloodRaceDataFromSQL(logger, data_dir, race_url, race_smp_num, horse_url_
 
 
     return blood_race_data_list
+
+
+
+
+def scrRaceData(logger, data_dir, race_url):
+    options = Options()
+    options.add_argument('--headless')    # ヘッドレスモードに
+    driver = webdriver.Chrome(chrome_options=options) 
+    wait = WebDriverWait(driver,5)
+
+    driver.get(race_url) # 速度ボトルネック
+    time.sleep(1)
+    wait.until(EC.presence_of_all_elements_located)
+
+    # 開催レース情報の取得
+    racedata01_rows = driver.find_element_by_class_name('RaceData01').find_elements_by_tag_name("span")
+    distance = int(racedata01_rows[0].text[-5:-1])
+    race_course_gnd = ""
+    if "芝" in racedata01_rows[0].text[0]:
+        race_course_gnd = "T"
+    elif "ダ" in racedata01_rows[0].text[0]:
+        race_course_gnd = "D"
+    if "障" in racedata01_rows[0].text[0]:
+        race_course_gnd = "O"
+    racedata02_rows = driver.find_element_by_class_name('RaceData02').find_elements_by_tag_name("span")
+    place = racedata02_rows[1].text
+
+    all_race_rows = driver.find_element_by_class_name('Shutuba_Table').find_elements_by_tag_name("tr")
+    frame_number_list = []
+    for r_row in range(2,len(all_race_rows)):
+        #for r_row in range(2 + 4,2+5):
+        frame_number_list.append(int(all_race_rows[r_row].find_elements_by_tag_name("td")[0].find_element_by_tag_name("span").text))
+
+
+
+    return distance, race_course_gnd, place, frame_number_list
 
 
 
@@ -678,7 +710,6 @@ def genTamerRankAndDistanceFig(result_dir, race_smp_num, tamer_name_list, tamer_
         H = plt.hist2d(tamer_result_distance, tamer_result_rank, bins=[np.linspace(900,3600,28),np.linspace(0,20,21)], cmap=cm.jet)
         plt.colorbar(H[3])
 
-
         #plt.scatter(tamer_result_distance, tamer_result_rank)
         plt.xlabel('Distance')
         plt.ylabel('Rank')
@@ -801,6 +832,296 @@ def genBloodRankAndDistanceFig(result_dir, race_smp_num, horse_name_list, blood_
 
 
 
+def genBloodFrameNumberAndRankFig(result_dir, race_smp_num, blood_name_list, blood_race_data_list):
+    blood_folder = "/eda_distance_and_frame_number"
+    blood_path = result_dir + "/image/blood" + blood_folder
+    if not os.path.exists(blood_path):
+        os.mkdir(blood_path)
+
+    for i in range(len(blood_race_data_list)):
+        blood_result_rank = []
+        blood_result_frame_number = []
+        blood_result_distance = []
+        for j in range(len(blood_race_data_list[i])):
+            if type(blood_race_data_list[i][j]["rank"]) == int and type(blood_race_data_list[i][j]["frame_number"] == int):
+                blood_result_rank.append(blood_race_data_list[i][j]["rank"])
+                blood_result_frame_number.append(blood_race_data_list[i][j]["frame_number"])
+                blood_result_distance.append(blood_race_data_list[i][j]["race_course_m"])
+
+        plt.clf()
+
+        H = plt.hist2d(blood_result_frame_number, blood_result_rank, bins=[np.linspace(0,10,11),np.linspace(0,20,21)], cmap=cm.jet)
+        plt.colorbar(H[3])
+
+
+        #plt.scatter(blood_result_frame_number, blood_result_rank)
+        plt.xlabel('Frame Number')
+        plt.ylabel('Rank')
+        plt.title('race_smp_num={}'.format(len(blood_result_rank)),loc='left',fontsize=20)
+        #plt.xlim(0,10)
+        plt.ylim(20,0)
+        #plt.grid(True)
+        plt.savefig(result_dir + "/image/blood/eda_distance_and_frame_number" + '/Rank_Frame_Number_{}.png'.format(blood_name_list[i]))
+        plt.close()
+
+
+
+
+def genBloodFrameNumberAndRankFigAndDistance(result_dir, race_smp_num, blood_name_list, blood_race_data_list):
+    blood_folder = "/eda_distance_and_frame_number_distance"
+    blood_path = result_dir + "/image/blood" + blood_folder
+    if not os.path.exists(blood_path):
+        os.mkdir(blood_path)
+
+    dis_range = [1000, 1400, 1800, 2200, 2600, 3000, 3400]
+    for k in range(len(dis_range) - 1):
+        for i in range(len(blood_race_data_list)):
+            blood_folder = "/" + blood_name_list[i]
+            blood_path = result_dir + "/image/blood/eda_distance_and_frame_number_distance" + blood_folder
+            if not os.path.exists(blood_path):
+                os.mkdir(blood_path)
+            blood_result_rank = []
+            blood_result_frame_number = []
+            blood_result_distance = []
+            for j in range(len(blood_race_data_list[i])):
+                if type(blood_race_data_list[i][j]["rank"]) == int and \
+                    type(blood_race_data_list[i][j]["frame_number"] == int) and \
+                    type(blood_race_data_list[i][j]["race_course_m"] == int):
+                    if dis_range[k] < blood_race_data_list[i][j]["race_course_m"] and blood_race_data_list[i][j]["race_course_m"] < dis_range[k+1] - 1:
+                        blood_result_rank.append(blood_race_data_list[i][j]["rank"])
+                        blood_result_frame_number.append(blood_race_data_list[i][j]["frame_number"])
+                        blood_result_distance.append(blood_race_data_list[i][j]["race_course_m"])
+
+            plt.clf()
+            H = plt.hist2d(blood_result_frame_number, blood_result_rank, bins=[np.linspace(0,10,11),np.linspace(0,20,21)], cmap=cm.jet)
+            plt.colorbar(H[3])
+            plt.xlabel('Frame Number')
+            plt.ylabel('Rank')
+            plt.title('race_smp_num={}, distance={}-{}'.format(len(blood_result_rank), dis_range[k], dis_range[k+1] - 1),loc='left',fontsize=15)
+            #plt.xlim(0,10)
+            plt.ylim(20,0)
+            plt.savefig(result_dir + "/image/blood/eda_distance_and_frame_number_distance" + blood_folder + '/Rank_Frame_Number_{}_{}-{}.png'.format(blood_name_list[i], dis_range[k], dis_range[k+1] - 1))
+            plt.close()
+
+
+
+
+
+
+
+
+
+def calcJockeyAveRankForDistance(result_dir, race_smp_num, jockey_name_list, jockey_race_data_list, distance):
+    rank_ave_list = []
+    for i in range(len(jockey_race_data_list)):
+        jockey_result_rank = []
+        jockey_result_distance = []
+        for j in range(len(jockey_race_data_list[i])):
+            if type(jockey_race_data_list[i][j]["rank"]) == int and type(jockey_race_data_list[i][j]["race_course_m"] == int):
+                jockey_result_rank.append(jockey_race_data_list[i][j]["rank"])
+                jockey_result_distance.append(jockey_race_data_list[i][j]["race_course_m"])
+
+        plt.clf()
+
+        H = plt.hist2d(jockey_result_distance, jockey_result_rank, bins=[np.linspace(900,3600,28),np.linspace(0,20,21)], cmap=cm.jet)
+
+        rank_ave = 0
+        for dis_idx in range(len(H[1])):
+            if H[1][dis_idx] == distance:
+                rank_degree_list = H[0][dis_idx]
+                rank_num = 0
+                for rd_idx in range(len(rank_degree_list)):
+                    rank_ave += rank_degree_list[rd_idx] * H[2][rd_idx]
+                    rank_num += rank_degree_list[rd_idx]
+                rank_ave /= rank_num
+        rank_ave_list.append(rank_ave)
+
+        logger.log(20, "[Jockey][dis] {} ave rank = {:.2f}".format(jockey_name_list[i], rank_ave))
+
+        plt.close()
+
+    return rank_ave_list
+
+
+
+
+def calcTamerAveRankForDistance(result_dir, race_smp_num, tamer_name_list, tamer_race_data_list, distance):
+    rank_ave_list = []
+    for i in range(len(tamer_race_data_list)):
+        tamer_result_rank = []
+        tamer_result_distance = []
+        for j in range(len(tamer_race_data_list[i])):
+            if type(tamer_race_data_list[i][j]["rank"]) == int and type(tamer_race_data_list[i][j]["race_course_m"] == int):
+                tamer_result_rank.append(tamer_race_data_list[i][j]["rank"])
+                tamer_result_distance.append(tamer_race_data_list[i][j]["race_course_m"])
+
+        plt.clf()
+
+        H = plt.hist2d(tamer_result_distance, tamer_result_rank, bins=[np.linspace(900,3600,28),np.linspace(0,20,21)], cmap=cm.jet)
+
+        rank_ave = 0
+        for dis_idx in range(len(H[1])):
+            if H[1][dis_idx] == distance:
+                rank_degree_list = H[0][dis_idx]
+                rank_num = 0
+                for rd_idx in range(len(rank_degree_list)):
+                    rank_ave += rank_degree_list[rd_idx] * H[2][rd_idx]
+                    rank_num += rank_degree_list[rd_idx]
+                rank_ave /= rank_num
+        rank_ave_list.append(rank_ave)
+
+        logger.log(20, "[Tamer][dis] {} ave rank = {:.2f}".format(tamer_name_list[i], rank_ave))
+
+        plt.close()
+
+    return rank_ave_list
+
+
+
+
+def calcBloodAveRankForDistance(result_dir, race_smp_num, horse_name_list, blood_race_data_list, distance):
+    rank_ave_list = []
+    for i in range(len(blood_race_data_list)):
+        blood_result_rank = []
+        blood_result_distance = []
+        for j in range(len(blood_race_data_list[i])):
+            if type(blood_race_data_list[i][j]["rank"]) == int and type(blood_race_data_list[i][j]["race_course_m"] == int):
+                blood_result_rank.append(blood_race_data_list[i][j]["rank"])
+                blood_result_distance.append(blood_race_data_list[i][j]["race_course_m"])
+
+        plt.clf()
+
+        H = plt.hist2d(blood_result_distance, blood_result_rank, bins=[np.linspace(900,3600,28),np.linspace(0,20,21)], cmap=cm.jet)
+
+        rank_ave = 0
+        for dis_idx in range(len(H[1])):
+            if H[1][dis_idx] == distance:
+                rank_degree_list = H[0][dis_idx]
+                rank_num = 0
+                for rd_idx in range(len(rank_degree_list)):
+                    rank_ave += rank_degree_list[rd_idx] * H[2][rd_idx]
+                    rank_num += rank_degree_list[rd_idx]
+                rank_ave /= rank_num
+        rank_ave_list.append(rank_ave)
+
+        logger.log(20, "[Blood][dis] {} ave rank = {:.2f}".format(horse_name_list[i], rank_ave))
+
+        plt.close()
+    
+    return rank_ave_list
+
+
+
+def calcJockeyAveRankForFrameNumber(result_dir, race_smp_num, jockey_name_list, jockey_race_data_list, frame_number_list):
+    rank_ave_list = []
+    for i in range(len(jockey_race_data_list)):
+        jockey_result_rank = []
+        jockey_result_frame_number = []
+        jockey_result_distance = []
+        for j in range(len(jockey_race_data_list[i])):
+            if type(jockey_race_data_list[i][j]["rank"]) == int and type(jockey_race_data_list[i][j]["frame_number"] == int):
+                jockey_result_rank.append(jockey_race_data_list[i][j]["rank"])
+                jockey_result_frame_number.append(jockey_race_data_list[i][j]["frame_number"])
+                jockey_result_distance.append(jockey_race_data_list[i][j]["race_course_m"])
+
+        plt.clf()
+
+        H = plt.hist2d(jockey_result_frame_number, jockey_result_rank, bins=[np.linspace(0,10,11),np.linspace(0,20,21)], cmap=cm.jet)
+
+        rank_ave = 0
+        for fn_idx in range(len(H[1])):
+            if H[1][fn_idx] == frame_number_list[i]:
+                rank_degree_list = H[0][fn_idx]
+                rank_num = 0
+                for rd_idx in range(len(rank_degree_list)):
+                    rank_ave += rank_degree_list[rd_idx] * H[2][rd_idx]
+                    rank_num += rank_degree_list[rd_idx]
+                rank_ave /= rank_num
+        rank_ave_list.append(rank_ave)
+
+        logger.log(20, "[Jockey][fn] {} ave rank = {:.2f}".format(jockey_name_list[i], rank_ave))
+
+        plt.close()
+
+    return rank_ave_list
+
+
+
+
+def calcTamerAveRankForFrameNumber(result_dir, race_smp_num, tamer_name_list, tamer_race_data_list, frame_number_list):
+    rank_ave_list = []
+    for i in range(len(tamer_race_data_list)):
+        tamer_result_rank = []
+        tamer_result_frame_number = []
+        tamer_result_distance = []
+        for j in range(len(tamer_race_data_list[i])):
+            if type(tamer_race_data_list[i][j]["rank"]) == int and type(tamer_race_data_list[i][j]["frame_number"] == int):
+                tamer_result_rank.append(tamer_race_data_list[i][j]["rank"])
+                tamer_result_frame_number.append(tamer_race_data_list[i][j]["frame_number"])
+                tamer_result_distance.append(tamer_race_data_list[i][j]["race_course_m"])
+
+        plt.clf()
+
+        H = plt.hist2d(tamer_result_frame_number, tamer_result_rank, bins=[np.linspace(0,10,11),np.linspace(0,20,21)], cmap=cm.jet)
+
+        rank_ave = 0
+        for fn_idx in range(len(H[1])):
+            if H[1][fn_idx] == frame_number_list[i]:
+                rank_degree_list = H[0][fn_idx]
+                rank_num = 0
+                for rd_idx in range(len(rank_degree_list)):
+                    rank_ave += rank_degree_list[rd_idx] * H[2][rd_idx]
+                    rank_num += rank_degree_list[rd_idx]
+                rank_ave /= rank_num
+        rank_ave_list.append(rank_ave)
+
+        logger.log(20, "[Tamer][fn] {} ave rank = {:.2f}".format(tamer_name_list[i], rank_ave))
+
+        plt.close()
+
+    return rank_ave_list
+
+
+
+
+def calcBloodAveRankForFrameNumber(result_dir, race_smp_num, horse_name_list, blood_race_data_list, frame_number_list):
+    rank_ave_list = []
+    for i in range(len(blood_race_data_list)):
+        blood_result_rank = []
+        blood_result_distance = []
+        blood_result_frame_number = []
+        for j in range(len(blood_race_data_list[i])):
+            if type(blood_race_data_list[i][j]["rank"]) == int and type(blood_race_data_list[i][j]["race_course_m"] == int):
+                blood_result_rank.append(blood_race_data_list[i][j]["rank"])
+                blood_result_frame_number.append(blood_race_data_list[i][j]["frame_number"])
+                blood_result_distance.append(blood_race_data_list[i][j]["race_course_m"])
+
+        plt.clf()
+
+        H = plt.hist2d(blood_result_frame_number, blood_result_rank, bins=[np.linspace(900,3600,28),np.linspace(0,20,21)], cmap=cm.jet)
+        print(H)
+
+        rank_ave = 0
+        for fn_idx in range(len(H[1])):
+            if H[1][fn_idx] == frame_number_list[i]:
+                rank_degree_list = H[0][fn_idx]
+                rank_num = 0
+                for rd_idx in range(len(rank_degree_list)):
+                    rank_ave += rank_degree_list[rd_idx] * H[2][rd_idx]
+                    rank_num += rank_degree_list[rd_idx]
+                rank_ave /= rank_num
+        rank_ave_list.append(rank_ave)
+
+        logger.log(20, "[Blood][fn] {} ave rank = {:.2f}".format(horse_name_list[i], rank_ave))
+
+        plt.close()
+    
+    return rank_ave_list
+
+
+
+
+
 
 def get_unique_list(seq):
     seen = []
@@ -809,7 +1130,7 @@ def get_unique_list(seq):
 
 
 
-def calcJockeySpeedFigure(logger, race_url, data_dir, result_dir, race_smp_num):
+def calcJockeySpeedFigure(logger, race_url, data_dir, result_dir, race_smp_num, foal_smp_num):
 
     start = time.time()
 
@@ -819,12 +1140,21 @@ def calcJockeySpeedFigure(logger, race_url, data_dir, result_dir, race_smp_num):
     rap_time = time.time() - start
     logger.log(20, "rap_time:{0}[sec]".format(rap_time))
 
+    # 開催レース基本情報のスクレイピング
+    distance, race_course_gnd, place, frame_number_list = scrRaceData(logger, data_dir, race_url)
+    logger.log(20, "race distance = {}".format(distance))
+    logger.log(20, "race race_course_gnd = {}".format(race_course_gnd))
+    logger.log(20, "race place = {}".format(place))
+    logger.log(20, "frame_number_list = {}".format(frame_number_list))
+    rap_time = time.time() - start
+    logger.log(20, "rap_time:{0}[sec]".format(rap_time))
+
     
     # 出走馬のURLと名前をスクレイピング
     horse_url_list, horse_name_list = scrHorseRaceNameAndUrl(logger, race_url)
     rap_time = time.time() - start
     logger.log(20, "rap_time:{0}[sec]".format(rap_time))
-
+    
     
     """
     debug_idx = -1
@@ -835,21 +1165,17 @@ def calcJockeySpeedFigure(logger, race_url, data_dir, result_dir, race_smp_num):
     horse_url_list = [horse_url_list[debug_idx]]
     """
 
-
-    """
-
     # ジョッキーのURLと名前をスクレイピング
     jockey_url_list, jockey_name_list = scrJockeyRaceNameAndUrl(logger, race_url)
     rap_time = time.time() - start
     logger.log(20, "rap_time:{0}[sec]".format(rap_time))
-    
+
     # 調教師のURLと名前をスクレイピング
     tamer_url_list, tamer_name_list = scrTamerRaceNameAndUrl(logger, race_url)
     rap_time = time.time() - start
     logger.log(20, "rap_time:{0}[sec]".format(rap_time))
-    """
+    
 
-    """
     # ジョッキーのレース成績をSQLから取得
     jockey_race_data_list = scrJockeyRaceDataFromSQL(logger, data_dir, race_url, race_smp_num, jockey_url_list, jockey_name_list)
     rap_time = time.time() - start
@@ -859,7 +1185,6 @@ def calcJockeySpeedFigure(logger, race_url, data_dir, result_dir, race_smp_num):
     tamer_race_data_list = scrTamerRaceDataFromSQL(logger, data_dir, race_url, race_smp_num, tamer_url_list, tamer_name_list)
     rap_time = time.time() - start
     logger.log(20, "rap_time:{0}[sec]".format(rap_time))
-    """
 
     # 出走馬の血統情報をデータベース書き込み
     scrHorseBloodline(logger, race_url, data_dir)
@@ -867,10 +1192,9 @@ def calcJockeySpeedFigure(logger, race_url, data_dir, result_dir, race_smp_num):
     logger.log(20, "rap_time:{0}[sec]".format(rap_time))
 
     # 出走馬の血統馬のレース成績をSQLから取得
-    blood_race_data_list = scrBloodRaceDataFromSQL(logger, data_dir, race_url, race_smp_num, horse_url_list, horse_name_list)
+    blood_race_data_list = scrBloodRaceDataFromSQL(logger, data_dir, race_url, foal_smp_num, horse_url_list, horse_name_list)
     rap_time = time.time() - start
     logger.log(20, "rap_time:{0}[sec]".format(rap_time))
-
 
     # 着順対距離のグラフ描画（ジョッキー）
     #genJockeyRankAndDistanceFig(result_dir, race_smp_num, jockey_name_list, jockey_race_data_list)
@@ -894,10 +1218,32 @@ def calcJockeySpeedFigure(logger, race_url, data_dir, result_dir, race_smp_num):
     genBloodRankAndDistanceFig(result_dir, race_smp_num, horse_name_list, blood_race_data_list)
 
     # 着順対距離のグラフ描画（出走馬の血統馬）
-    #genTamerFrameNumberAndRankFig(result_dir, race_smp_num, horse_name_list, blood_race_data_list)
+    genBloodFrameNumberAndRankFig(result_dir, race_smp_num, horse_name_list, blood_race_data_list)
 
     # 着順対距離のグラフ描画（出走馬の血統馬）
-    #genTamerFrameNumberAndRankFigAndDistance(result_dir, race_smp_num, horse_name_list, blood_race_data_list)
+    genBloodFrameNumberAndRankFigAndDistance(result_dir, race_smp_num, horse_name_list, blood_race_data_list)
+
+    jockey_rank_ave_for_dist_list = calcJockeyAveRankForDistance(result_dir, race_smp_num, jockey_name_list, jockey_race_data_list, distance)
+    tamer_rank_ave_for_dist_list = calcTamerAveRankForDistance(result_dir, race_smp_num, tamer_name_list, tamer_race_data_list, distance)
+    blood_rank_ave_for_dist_list = calcBloodAveRankForDistance(result_dir, race_smp_num, horse_name_list, blood_race_data_list, distance)
+
+    jockey_rank_ave_for_fn_list = calcJockeyAveRankForFrameNumber(result_dir, race_smp_num, jockey_name_list, jockey_race_data_list, frame_number_list)
+    tamer_rank_ave_for_fn_list = calcTamerAveRankForFrameNumber(result_dir, race_smp_num, tamer_name_list, tamer_race_data_list, frame_number_list)
+    blood_rank_ave_for_fn_list = calcBloodAveRankForFrameNumber(result_dir, race_smp_num, horse_name_list, blood_race_data_list, frame_number_list)
+
+    total_rank_ave_list = []
+    for i in range(len(horse_name_list)):
+        total_rank_ave = (jockey_rank_ave_for_dist_list[i] + tamer_rank_ave_for_dist_list[i] + blood_rank_ave_for_dist_list[i]) / 3
+        #total_rank_ave = (jockey_rank_ave_for_dist_list[i] + tamer_rank_ave_for_dist_list[i] + blood_rank_ave_for_dist_list[i] + jockey_rank_ave_for_fn_list[i] + tamer_rank_ave_for_fn_list[i] + blood_rank_ave_for_fn_list[i]) / 6
+        total_rank_ave_list.append([total_rank_ave, \
+                                    jockey_name_list[i], jockey_rank_ave_for_dist_list[i], jockey_rank_ave_for_fn_list[i], \
+                                    tamer_name_list[i], tamer_rank_ave_for_dist_list[i], tamer_rank_ave_for_fn_list[i], \
+                                    horse_name_list[i], blood_rank_ave_for_dist_list[i], blood_rank_ave_for_fn_list[i]])
+        
+    total_rank_ave_list_sorted = sorted(total_rank_ave_list, key=lambda x: x[0])
+    for i in range(len(total_rank_ave_list_sorted)):
+        tmp_trals = total_rank_ave_list_sorted[i]
+        logger.log(20, "total rank ave = {:.2f} [{}, {}, {}]".format(tmp_trals[0], tmp_trals[1], tmp_trals[4], tmp_trals[7]))
 
 
 
@@ -905,21 +1251,22 @@ if __name__ == "__main__":
 
     # 開催レースのURL
     race_url_list = [
-        "https://race.netkeiba.com/race/shutuba.html?race_id=202105030606&rf=race_submenu"
+        "https://race.netkeiba.com/race/shutuba.html?race_id=202109030411&rf=race_list"
     ]
-    data_dir = "../../data"
-    result_dir = "../../result"
+    data_dir = "../data"
+    result_dir = "../result"
     race_smp_num = 1000
+    foal_smp_num = 50
 
     for race_url in race_url_list:
         # ロガーの初期化
-        log_name = "[eda]" + race_url.split("?")[-1].split("&")[0]
+        log_name = "[pred]" + race_url.split("?")[-1].split("&")[0]
         logger = init_logger(result_dir + "/log", log_name)
 
         logger.log(20, "XXXXXXXXXXXXXXXXXXX")
         logger.log(20, log_name)
         logger.log(20, "XXXXXXXXXXXXXXXXXXX")
 
-        calcJockeySpeedFigure(logger, race_url, data_dir, result_dir, race_smp_num)
+        calcJockeySpeedFigure(logger, race_url, data_dir, result_dir, race_smp_num, foal_smp_num)
 
 

@@ -1114,7 +1114,7 @@ if __name__ == '__main__':
 
 
     race_url_list = [
-        "https://race.netkeiba.com/race/shutuba.html?race_id=202105030606&rf=race_submenu",
+        "https://race.netkeiba.com/race/shutuba.html?race_id=202109030411&rf=race_list",
     ]
     #sql_dir = "../data/all_sq"
     data_dir = "../data"
