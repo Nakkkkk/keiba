@@ -1114,7 +1114,7 @@ if __name__ == '__main__':
 
 
     race_url_list = [
-        "https://race.netkeiba.com/race/shutuba.html?race_id=202109030411&rf=race_list",
+        "https://race.netkeiba.com/race/shutuba.html?race_id=202109030411&rf=race_submenu",
     ]
     #sql_dir = "../data/all_sq"
     data_dir = "../data"
@@ -1122,7 +1122,7 @@ if __name__ == '__main__':
 
     for race_url in race_url_list:
         # ロガーの初期化
-        log_name = "[pred]" + race_url.split("?")[-1].split("&")[0]
+        log_name = "[pred][nishida]" + race_url.split("?")[-1].split("&")[0]
         logger = init_logger(result_dir + "/log", log_name)
 
         logger.log(20, "XXXXXXXXXXXXXXXXXXX")

@@ -28,11 +28,11 @@ from mpl_toolkits.mplot3d import Axes3D
 import random
 
 
-from lib_scr import *
-from lib_db import *
-from lib_fig import *
+#from lib_scr import *
+#from lib_db import *
+#from lib_fig import *
 
-
+from common_import import *
 
 
 # ベースタイムと馬場指数の計算 TODO
@@ -313,111 +313,6 @@ def get_unique_list(seq):
 
 
 
-def calcJockeySpeedFigure(logger, race_url, data_dir, result_dir, race_smp_num):
-
-    start = time.time()
-
-    # sqlデータの読み込み
-    horse_data_list = readHorseSqlDatabase(data_dir)
-    race_data_list = readRaceSqlDatabase(data_dir)
-    rap_time = time.time() - start
-    logger.log(20, "rap_time:{0}[sec]".format(rap_time))
-
-    # ジョッキーのURLと名前をスクレイピング
-    jockey_url_list, jockey_name_list = scrJockeyRaceNameAndUrl(logger, race_url)
-    rap_time = time.time() - start
-    logger.log(20, "rap_time:{0}[sec]".format(rap_time))
- 
-    # ジョッキーのレース成績をSQLから取得
-    jockey_race_data_list = scrJockeyRaceDataFromSQL(logger, data_dir, race_url, race_smp_num, jockey_url_list, jockey_name_list)
-    rap_time = time.time() - start
-    logger.log(20, "rap_time:{0}[sec]".format(rap_time))
-
-    # ジョッキーのベースタイムと馬場指数を算出
-    jockey_base_time_and_gnd_figure_list, jockey_race_data_list_shr = calcBaseTimeFigureAndGndFigureWithoutDup(logger, data_dir, race_data_list, horse_data_list, jockey_race_data_list)
-    rap_time = time.time() - start
-    logger.log(20, "rap_time:{0}[sec]".format(rap_time))
-
-    # スピード指数の計算
-    jockey_result_list = calcSpeedFigure(logger, jockey_name_list, jockey_race_data_list, jockey_race_data_list_shr, jockey_base_time_and_gnd_figure_list)
-    rap_time = time.time() - start
-    logger.log(20, "rap_time:{0}[sec]".format(rap_time))
-
-    # スピード指数対距離のグラフ描画
-    genJockeySpeedFigureAndDistanceFig(result_dir, race_smp_num, jockey_name_list, jockey_result_list)
 
 
 
-
-
-def calcJockeySpeedFigure(logger, race_url, data_dir, result_dir, race_smp_num):
-
-    start = time.time()
-
-    # sqlデータの読み込み
-    horse_data_list = readHorseSqlDatabase(data_dir)
-    race_data_list = readRaceSqlDatabase(data_dir)
-    rap_time = time.time() - start
-    logger.log(20, "rap_time:{0}[sec]".format(rap_time))
-
-    """
-    # 出走馬のURLと名前をスクレイピング
-    horse_url_list, horse_name_list = scrHorseRaceNameAndUrl(logger, race_url)
-    rap_time = time.time() - start
-    logger.log(20, "rap_time:{0}[sec]".format(rap_time))
-
-    # ジョッキーのURLと名前をスクレイピング
-    jockey_url_list, jockey_name_list = scrJockeyRaceNameAndUrl(logger, race_url)
-    rap_time = time.time() - start
-    logger.log(20, "rap_time:{0}[sec]".format(rap_time))
-    """
-
-    # 調教師のURLと名前をスクレイピング
-    tamer_url_list, tamer_name_list = scrTamerRaceNameAndUrl(logger, race_url)
-    rap_time = time.time() - start
-    logger.log(20, "rap_time:{0}[sec]".format(rap_time))
-
-    """
-    # ジョッキーのレース成績をSQLから取得
-    jockey_race_data_list = scrJockeyRaceDataFromSQL(logger, data_dir, race_url, race_smp_num, jockey_url_list, jockey_name_list)
-    rap_time = time.time() - start
-    logger.log(20, "rap_time:{0}[sec]".format(rap_time))
-    """
-
-    # 調教師のレース成績をSQLから取得
-    tamer_race_data_list = scrTamerRaceDataFromSQL(logger, data_dir, race_url, race_smp_num, tamer_url_list, tamer_name_list)
-    rap_time = time.time() - start
-    logger.log(20, "rap_time:{0}[sec]".format(rap_time))
-
-    """
-    # ジョッキーのベースタイムと馬場指数を算出
-    jockey_base_time_and_gnd_figure_list, jockey_race_data_list_shr = calcBaseTimeFigureAndGndFigureWithoutDup(logger, data_dir, race_data_list, horse_data_list, jockey_race_data_list)
-    rap_time = time.time() - start
-    logger.log(20, "rap_time:{0}[sec]".format(rap_time))
-
-    # スピード指数の計算
-    jockey_result_list = calcSpeedFigure(logger, jockey_name_list, jockey_race_data_list, jockey_race_data_list_shr, jockey_base_time_and_gnd_figure_list)
-    rap_time = time.time() - start
-    logger.log(20, "rap_time:{0}[sec]".format(rap_time))
-
-    # スピード指数対距離のグラフ描画
-    genJockeySpeedFigureAndDistanceFig(result_dir, race_smp_num, jockey_name_list, jockey_result_list)
-    """
-
-    # 着順対距離のグラフ描画（ジョッキー）
-    #genJockeyRankAndDistanceFig(result_dir, race_smp_num, jockey_name_list, jockey_race_data_list)
-
-    # 着順対距離のグラフ描画（ジョッキー）
-    #genJockeyFrameNumberAndRankFig(result_dir, race_smp_num, jockey_name_list, jockey_race_data_list)
-
-    # 着順対距離のグラフ描画（ジョッキー）
-    #genJockeyFrameNumberAndRankFigAndDistance(result_dir, race_smp_num, jockey_name_list, jockey_race_data_list)
-
-    # 着順対距離のグラフ描画（調教師）
-    #genTamerRankAndDistanceFig(result_dir, race_smp_num, tamer_name_list, tamer_race_data_list)
-
-    # 着順対距離のグラフ描画（調教師）
-    genTamerFrameNumberAndRankFig(result_dir, race_smp_num, tamer_name_list, tamer_race_data_list)
-
-    # 着順対距離のグラフ描画（調教師）
-    #genTamerFrameNumberAndRankFigAndDistance(result_dir, race_smp_num, tamer_name_list, tamer_race_data_list)

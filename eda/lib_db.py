@@ -27,9 +27,11 @@ import matplotlib.cm as cm
 from mpl_toolkits.mplot3d import Axes3D
 import random
 
-from lib_scr import *
-from lib_fig import *
-from lib_calc import *
+#from lib_scr import *
+#from lib_fig import *
+#from lib_calc import *
+
+from common_import import *
 
 
 # 馬のSQLデータベースの読み込み
@@ -105,6 +107,31 @@ def updateDatabeseBaseTimeFigureAndGndFigure(logger, data_dir, place, distance, 
 
     conn.commit()
 
+    cur.close()
+    conn.close()
+
+
+
+
+
+def updateDatabeseBloodFather(logger, data_dir, horse_id_foal, horse_id_father):
+    if horse_id_foal == -1 and horse_id_father == -1:
+        print("#### debug ####")
+        return
+        
+    dbname = '/all_sq/BloodFather.db'
+    conn = sqlite3.connect(data_dir + dbname)
+    cur = conn.cursor()
+
+    # データを入力 OR 更新
+    cur.execute('SELECT * FROM blood_father WHERE horse_id_foal = "{}" AND horse_id_father = "{}"'.format(horse_id_foal, horse_id_father))
+    row_fetched = cur.fetchall()
+    if len(row_fetched) == 0:
+        logger.log(20, "INSERT")
+        cur.execute('INSERT INTO blood_father(horse_id_foal, horse_id_father) \
+        values("{}","{}")'.format(horse_id_foal, horse_id_father))
+
+    conn.commit()
     cur.close()
     conn.close()
 

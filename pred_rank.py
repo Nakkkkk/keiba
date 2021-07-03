@@ -1215,13 +1215,13 @@ def calcJockeySpeedFigure(logger, race_url, data_dir, result_dir, race_smp_num, 
     #genTamerFrameNumberAndRankFigAndDistance(result_dir, race_smp_num, tamer_name_list, tamer_race_data_list)
 
     # 着順対距離のグラフ描画（出走馬の血統馬）
-    genBloodRankAndDistanceFig(result_dir, race_smp_num, horse_name_list, blood_race_data_list)
+    #genBloodRankAndDistanceFig(result_dir, race_smp_num, horse_name_list, blood_race_data_list)
 
     # 着順対距離のグラフ描画（出走馬の血統馬）
-    genBloodFrameNumberAndRankFig(result_dir, race_smp_num, horse_name_list, blood_race_data_list)
+    #genBloodFrameNumberAndRankFig(result_dir, race_smp_num, horse_name_list, blood_race_data_list)
 
     # 着順対距離のグラフ描画（出走馬の血統馬）
-    genBloodFrameNumberAndRankFigAndDistance(result_dir, race_smp_num, horse_name_list, blood_race_data_list)
+    #genBloodFrameNumberAndRankFigAndDistance(result_dir, race_smp_num, horse_name_list, blood_race_data_list)
 
     jockey_rank_ave_for_dist_list = calcJockeyAveRankForDistance(result_dir, race_smp_num, jockey_name_list, jockey_race_data_list, distance)
     tamer_rank_ave_for_dist_list = calcTamerAveRankForDistance(result_dir, race_smp_num, tamer_name_list, tamer_race_data_list, distance)
@@ -1260,7 +1260,7 @@ if __name__ == "__main__":
 
     for race_url in race_url_list:
         # ロガーの初期化
-        log_name = "[pred]" + race_url.split("?")[-1].split("&")[0]
+        log_name = "[pred][rank]" + race_url.split("?")[-1].split("&")[0]
         logger = init_logger(result_dir + "/log", log_name)
 
         logger.log(20, "XXXXXXXXXXXXXXXXXXX")
