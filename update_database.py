@@ -387,7 +387,7 @@ def makeHorseAndRaceDatabaseUpdateList(sql_dir):
 
     # URLをテキストファイルで一旦保存
     path_db_update_list = "db_update_url_list_" + dt_now_strf + ".txt"
-    with open(path_db_update_list, mode='w') as f:
+    with open("db_update_url_list/" + path_db_update_list, mode='w') as f:
         flg_exit_update = False
         while True:
             time.sleep(5)
@@ -434,7 +434,7 @@ def getInfoFromHorseAndRaceDatabaseUpdateList(txtname):
 
 
     # テキストファイルでデータベースを更新
-    with open(txtname, mode='r') as f:
+    with open("db_update_url_list/" + txtname, mode='r') as f:
         urls = f.read().splitlines()
         race_info_list = []
         horse_infos_list = []

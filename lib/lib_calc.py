@@ -5,6 +5,7 @@
 
 import numpy as np
 import pandas as pd
+import scipy as sp
 from bs4 import BeautifulSoup
 import os
 from natsort import natsorted
@@ -27,12 +28,18 @@ import matplotlib.cm as cm
 from mpl_toolkits.mplot3d import Axes3D
 import random
 
+from scipy import stats as st
+# 統計モデルを推定するライブラリ
+import statsmodels.formula.api as smf
+import statsmodels.api as sm
+import statsmodels.stats.anova as anova # 分散分析するライブラリ
+from statsmodels.stats.multicomp import pairwise_tukeyhsd # Tukeyの多重比較するライブラリ
 
-#from lib_scr import *
-#from lib_db import *
-#from lib_fig import *
 
 from common_import import *
+
+
+
 
 
 # ベースタイムと馬場指数の計算 TODO
@@ -314,5 +321,25 @@ def get_unique_list(seq):
 
 
 
+def calcAnova(result_dir, race_smp_num, name_list, race_data_list):
+    data_rank_list = []
+    data_distance_list = []
+    for i in range(len(race_data_list)):
+        data_rank = []
+        data_distance = []
+        for j in range(len(race_data_list[i])):
+            if type(race_data_list[i][j]["rank"]) == int and type(race_data_list[i][j]["race_course_m"] == int):
+                data_rank.append(race_data_list[i][j]["rank"])
+                data_distance.append(race_data_list[i][j]["race_course_m"])
+        data_rank_list.append(np.array(data_rank))
+        data_distance_list.append(np.array(data_distance))
 
+    for i in range(len(data_rank_list)):
+        f, p = st.f_oneway(data_rank_list[i - 1], data_rank_list[i])
+        print("{} and {} F={}, p={}".format(name_list[i - 1], name_list[i], f,p))
 
+    #f, p = st.f_oneway(*data_rank_list)
+    #print("F=%f, p-value = %f"%(f,p))
+
+    #f, p = st.f_oneway(*data_distance_list)
+    #print("F=%f, p-value = %f"%(f,p))

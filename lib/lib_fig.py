@@ -27,11 +27,11 @@ import matplotlib.cm as cm
 from mpl_toolkits.mplot3d import Axes3D
 import random
 
-#from lib_scr import *
-#from lib_db import *
-#from lib_calc import *
 
 from common_import import *
+
+
+
 
 def genJockeySpeedFigureAndDistanceFig(result_dir, race_smp_num, jockey_name_list, jockey_result_list):
     for i in range(len(jockey_name_list)):
@@ -110,7 +110,7 @@ def genJockeyFrameNumberAndRankFig(result_dir, race_smp_num, jockey_name_list, j
 
 
 
-def genJockeyFrameNumberAndRankFigAndDistance(result_dir, race_smp_num, jockey_name_list, jockey_race_data_list):
+def genJockeyFrameNumberAndRankAndDistanceFig(result_dir, race_smp_num, jockey_name_list, jockey_race_data_list):
     dis_range = [1000, 1400, 1800, 2200, 2600, 3000, 3400]
     for k in range(len(dis_range) - 1):
         for i in range(len(jockey_race_data_list)):
@@ -216,7 +216,7 @@ def genTamerFrameNumberAndRankFig(result_dir, race_smp_num, tamer_name_list, tam
 
 
 
-def genTamerFrameNumberAndRankFigAndDistance(result_dir, race_smp_num, tamer_name_list, tamer_race_data_list):
+def genTamerFrameNumberAndRankAndDistanceFig(result_dir, race_smp_num, tamer_name_list, tamer_race_data_list):
     tamer_folder = "/eda_distance_and_frame_number_distance"
     tamer_path = result_dir + "/image/tamer" + tamer_folder
     if not os.path.exists(tamer_path):
@@ -324,7 +324,7 @@ def genBloodFrameNumberAndRankFig(result_dir, race_smp_num, blood_name_list, blo
 
 
 
-def genBloodFrameNumberAndRankFigAndDistance(result_dir, race_smp_num, blood_name_list, blood_race_data_list):
+def genBloodFrameNumberAndRankAndDistanceFig(result_dir, race_smp_num, blood_name_list, blood_race_data_list):
     blood_folder = "/eda_distance_and_frame_number_distance"
     blood_path = result_dir + "/image/blood" + blood_folder
     if not os.path.exists(blood_path):

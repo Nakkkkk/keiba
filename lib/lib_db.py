@@ -27,11 +27,11 @@ import matplotlib.cm as cm
 from mpl_toolkits.mplot3d import Axes3D
 import random
 
-#from lib_scr import *
-#from lib_fig import *
-#from lib_calc import *
 
 from common_import import *
+
+
+
 
 
 # 馬のSQLデータベースの読み込み
